@@ -26,7 +26,7 @@ void MenuScene::init()
 	registerAction(SDLK_SPACE, "START");
 
 	auto title = m_entityManager.addEntity("title");
-	title->add<CTransform>(Vec2(150, 250), Vec2(0, 0));
+	title->add<CTransform>(glm::vec2(150.0f, 250.0f), glm::vec2(0.0f, 0.0f));
 	title->add<CText>("PRESS SPACE TO PLAY", m_font, SDL_Color{255, 255, 255, 255});
 
 	m_entityManager.update();

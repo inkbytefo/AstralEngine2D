@@ -1,5 +1,5 @@
 #pragma once
-#include "math/vec2.h"
+#include <glm/glm.hpp>
 #include <stdint.h>
 #include <string>
 #include <SDL3_ttf/SDL_ttf.h>
@@ -8,14 +8,15 @@
 // Veri odaklı tasarım (ECS) prensibi gereği mantıktan ayrılmıştır.
 struct CTransform
 {
-	Vec2 pos;
-	Vec2 velocity;
+	glm::vec2 pos{ 0.0f, 0.0f };
+	glm::vec2 velocity{ 0.0f, 0.0f };
 	bool has{ false };
 
 	CTransform() = default;
-	CTransform(const Vec2& pos, const Vec2& velocity)
-		: pos(pos), velocity(velocity) {}
+	CTransform(const glm::vec2& p, const glm::vec2& v)
+		: pos(p), velocity(v) {}
 };
+
 
 // Varlıkların ekranda nasıl görüneceğini (boyut ve renk) tanımlar.
 // Çizim sistemi bu verileri kullanarak SDL_Render komutlarını oluşturur.
@@ -120,7 +121,6 @@ struct CText
 inline bool checkCollision(const CTransform& a, const CShape& as,
 	const CTransform& b, const CShape& bs)
 {
-	// buraya AABB formülünü uygula
 	float aLeft = a.pos.x;
 	float aRight = a.pos.x + as.width;
 	float aTop = a.pos.y;

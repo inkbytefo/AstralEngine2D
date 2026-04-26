@@ -1,6 +1,6 @@
 #pragma once
 #include <SDL3/SDL.h>
-#include "math/vec2.h"
+#include <glm/glm.hpp>
 #include "core/entity_manager.h"
 #include "scene.h"
 

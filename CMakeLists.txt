@@ -25,7 +25,6 @@ set(SOURCES
     "engine/core/entity_manager.cpp"
     "engine/ecs/entity.h"
     "engine/ecs/components.h"
-    "engine/math/vec2.h"
 )
 
 add_executable(Astral ${SOURCES} "engine/core/scene.h" "games/pong/pong_game.h" "games/pong/pong_game.cpp" "games/pong/menu_scene.h" "games/pong/menu_scene.cpp" "engine/systems/movement_system.h" "engine/systems/render_system.h" "engine/systems/lifespan_system.h" "engine/systems/text_system.h" "engine/core/asset_manager.h" "engine/core/sound_manager.h" "engine/core/level_loader.h" "engine/core/json.hpp")

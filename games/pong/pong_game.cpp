@@ -71,7 +71,7 @@ void PongGame::update(float deltaTime)
 		auto& bShape = ball->get<CShape>();
 
 		auto trail = m_entityManager.addEntity("trail");
-		trail->add<CTransform>(bTrans.pos, Vec2(0, 0));
+		trail->add<CTransform>(bTrans.pos, glm::vec2(0.0f, 0.0f));
 		trail->add<CShape>(bShape.width, bShape.height, bShape.r, bShape.g, bShape.b, 255);
 		trail->add<CLifeSpan>(0.2f); // Yarım saniye ömrü var
 	}
@@ -130,8 +130,8 @@ void PongGame::sPongCollision()
 			}
 			
 			// Topu sıfırla
-			bTrans.pos = Vec2(400, 300);
-			bTrans.velocity = Vec2(250, 200);
+			bTrans.pos = glm::vec2(400.0f, 300.0f);
+			bTrans.velocity = glm::vec2(250.0f, 200.0f);
 		}
 		else if (bTrans.pos.x > 800) {
 			SoundManager::getInstance().playSound("score");
@@ -143,8 +143,8 @@ void PongGame::sPongCollision()
 			}
 			
 			// Topu sıfırla
-			bTrans.pos = Vec2(400, 300);
-			bTrans.velocity = Vec2(-250, 200); // Sol taraf kazandığı için topu ona doğru at
+			bTrans.pos = glm::vec2(400.0f, 300.0f);
+			bTrans.velocity = glm::vec2(-250.0f, 200.0f); // Sol taraf kazandığı için topu ona doğru at
 		}
 
 		// RAKET ÇARPIŞMALARI (AABB Mantığı)

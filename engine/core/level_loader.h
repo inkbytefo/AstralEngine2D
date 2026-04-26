@@ -44,8 +44,10 @@ public:
 
                 if (components.contains("CTransform")) {
                     auto& c = components["CTransform"];
-                    Vec2 pos(c["pos"][0].get<float>(), c["pos"][1].get<float>());
-                    Vec2 vel(c["velocity"][0].get<float>(), c["velocity"][1].get<float>());
+                    
+                    // Vec2 yerine glm::vec2
+                    glm::vec2 pos(c["pos"][0].get<float>(), c["pos"][1].get<float>());
+                    glm::vec2 vel(c["velocity"][0].get<float>(), c["velocity"][1].get<float>());
                     
                     if (e->has<CTransform>()) {
                         e->get<CTransform>().pos = pos;
@@ -54,6 +56,7 @@ public:
                         e->add<CTransform>(pos, vel);
                     }
                 }
+
 
                 if (components.contains("CShape")) {
                     auto& c = components["CShape"];
