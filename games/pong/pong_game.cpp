@@ -6,6 +6,7 @@
 #include "systems/text_system.h"
 #include "core/sound_manager.h"
 #include "core/level_loader.h"
+#include "core/asset_manager.h"
 
 PongGame::PongGame(SDL_Renderer* renderer) {
 	// İstersen burada renderer ile Pong'a özel texture (görsel) yüklemeleri yapabilirsin
@@ -13,9 +14,8 @@ PongGame::PongGame(SDL_Renderer* renderer) {
 
 void PongGame::init()
 {
-	//add the font
-	m_font = TTF_OpenFont("assets/fonts/arial.ttf", 48);
-	if (!m_font) SDL_Log("Failed to load font: %s", SDL_GetError());
+	// Fontu AssetManager'a metin ID'siyle ("arial_48") kaydet
+	AssetManager::getInstance().loadFont("arial_48", "assets/fonts/arial.ttf", 48);
 
 	// 1. Tuşları Aksiyonlara Bağla (Mapping)
 	registerAction(SDLK_W,      "P1_UP");
@@ -23,12 +23,18 @@ void PongGame::init()
 	registerAction(SDLK_UP,     "P2_UP");
 	registerAction(SDLK_DOWN,   "P2_DOWN");
 
-	// Fabrikayı kullan!
-	spawnScore("score_left",  Vec2(200, 50));
-	spawnScore("score_right", Vec2(600, 50));
-	
-	// Veri odaklı (Data-Driven) tasarım: Seviyeyi JSON'dan yükle
-	LevelLoader::loadLevel("assets/levels/pong_level.json", m_entityManager);
+	// Geliştirme ortamında kaynak klasörüne bak (CMake definitions)
+#ifndef ENGINE_ASSET_DIR
+#define ENGINE_ASSET_DIR "assets"
+#endif
+
+	std::string levelPath = std::string(ENGINE_ASSET_DIR) + "/levels/pong_level.json";
+
+	// Hardcode bitti, tüm evren JSON'dan doğuyor!
+	LevelLoader::loadLevel(m_entityManager, levelPath);
+
+	// Dosyanın en son değiştirilme tarihini hafızaya al
+	m_lastLevelTime = std::filesystem::last_write_time(levelPath);
 
 	SoundManager::getInstance().loadSound("hit", "assets/sounds/hit.wav");
 	SoundManager::getInstance().loadSound("score", "assets/sounds/score.wav");
@@ -36,25 +42,23 @@ void PongGame::init()
 	m_entityManager.update(); // Eklenenleri dahil et
 }
 
-PongGame::~PongGame()
-{
-	if (m_font) 
-	{
-		TTF_CloseFont(m_font);
-		m_font = nullptr;
-	}
-}
-
-
-
-void PongGame::spawnScore(const std::string& tag, Vec2 pos) {
-	auto score = m_entityManager.addEntity(tag);
-	score->add<CTransform>(pos, Vec2(0, 0));
-	score->add<CText>("0", m_font, SDL_Color{255, 255, 255, 255});
-}
-
 void PongGame::update(float deltaTime)
 {
+	// --- HOT-RELOADING MANTIK ---
+	try {
+		std::string levelPath = std::string(ENGINE_ASSET_DIR) + "/levels/pong_level.json";
+		auto currentTime = std::filesystem::last_write_time(levelPath);
+		if (currentTime > m_lastLevelTime) {
+			m_lastLevelTime = currentTime;
+			SDL_Log(">>> pong_level.json degisti! Hot-Reload uygulaniyor...");
+			SDL_Delay(50); // İşletim sisteminin dosyaya yazmayı bitirmesi için ufak bir pay
+			LevelLoader::loadLevel(m_entityManager, levelPath);
+		}
+	} catch (const std::exception& e) {
+		// Dosya kaydedilirken saniyelik okuma hatalarını yoksay (Crash önleyici)
+	}
+	// --- HOT-RELOADING SONU ---
+
 	m_entityManager.update();
 
 	sUserInput();

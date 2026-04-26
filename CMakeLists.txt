@@ -38,7 +38,11 @@ endif()
 target_include_directories(Astral PRIVATE 
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/engine
+    ${CMAKE_CURRENT_SOURCE_DIR}/engine/vendor/glm
 )
+
+# Geliştirme aşamasında kaynak assets klasörüne erişmek için macro
+target_compile_definitions(Astral PRIVATE ENGINE_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
 
 target_link_libraries(Astral PRIVATE SDL3::SDL3 SDL3_ttf::SDL3_ttf SDL3_image::SDL3_image SDL3_mixer::SDL3_mixer)
 

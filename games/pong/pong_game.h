@@ -1,13 +1,12 @@
 #pragma once
 #include "SDL3/SDL.h"
 #include "core/scene.h"
+#include <filesystem>
 
 class PongGame : public Scene
 {
 public:
-	// Constructor
 	PongGame(SDL_Renderer* renderer);
-	~PongGame();
 
 	void init() override;
 	void update(float deltaTime) override;
@@ -17,9 +16,6 @@ public:
 	void sDoAction(const std::string& actionName, bool started) override;
 
 private:
-	// Fabrika Metotları (Entity Spawners)
-	void spawnScore(const std::string& tag, Vec2 pos);
-
 	// Oyuna Özel Sistemler (Sadece Pong kurallarını içerir)
 	void sUserInput();
 	void sPongCollision();
@@ -27,5 +23,5 @@ private:
 	bool m_running{ true };
 	int m_scoreLeft{ 0 };
 	int m_scoreRight{ 0 };
-	TTF_Font* m_font{ nullptr };
+	std::filesystem::file_time_type m_lastLevelTime;
 };

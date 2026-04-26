@@ -3,27 +3,152 @@
     {
       "tag": "paddle_left",
       "components": {
-        "CTransform": { "pos": [50, 250], "velocity": [0, 0] },
-        "CShape": { "size": [20, 100], "color": [255, 255, 255, 255] },
-        "CBBox": { "size": [20, 100] },
+        "CTransform": {
+          "pos": [
+            50,
+            250
+          ],
+          "velocity": [
+            0,
+            0
+          ]
+        },
+        "CShape": {
+          "size": [
+            20,
+            100
+          ],
+          "color": [
+            255,
+            255,
+            255,
+            255
+          ]
+        },
+        "CBBox": {
+          "size": [
+            20,
+            100
+          ]
+        },
         "CInput": {}
       }
     },
     {
       "tag": "paddle_right",
       "components": {
-        "CTransform": { "pos": [730, 250], "velocity": [0, 0] },
-        "CShape": { "size": [20, 100], "color": [255, 255, 255, 255] },
-        "CBBox": { "size": [20, 100] },
+        "CTransform": {
+          "pos": [
+            730,
+            250
+          ],
+          "velocity": [
+            0,
+            0
+          ]
+        },
+        "CShape": {
+          "size": [
+            20,
+            100
+          ],
+          "color": [
+            255,
+            255,
+            255,
+            255
+          ]
+        },
+        "CBBox": {
+          "size": [
+            20,
+            100
+          ]
+        },
         "CInput": {}
       }
     },
     {
       "tag": "ball",
       "components": {
-        "CTransform": { "pos": [400, 300], "velocity": [250, 200] },
-        "CShape": { "size": [15, 15], "color": [255, 255, 0, 255] },
-        "CBBox": { "size": [15, 15] }
+        "CTransform": {
+          "pos": [
+            400,
+            300
+          ],
+          "velocity": [
+            250,
+            200
+          ]
+        },
+        "CShape": {
+          "size": [
+            15,
+            15
+          ],
+          "color": [
+            255,
+            0,
+            255,
+            0
+          ]
+        },
+        "CBBox": {
+          "size": [
+            15,
+            15
+          ]
+        }
+      }
+    },
+    {
+      "tag": "score_left",
+      "components": {
+        "CTransform": {
+          "pos": [
+            200,
+            50
+          ],
+          "velocity": [
+            0,
+            0
+          ]
+        },
+        "CText": {
+          "text": "0",
+          "font_id": "arial_48",
+          "color": [
+            255,
+            255,
+            255,
+            255
+          ]
+        }
+      }
+    },
+    {
+      "tag": "score_right",
+      "components": {
+        "CTransform": {
+          "pos": [
+            600,
+            50
+          ],
+          "velocity": [
+            0,
+            0
+          ]
+        },
+        "CText": {
+          "text": "0",
+          "font_id": "arial_48",
+          "color": [
+            255,
+            255,
+            255,
+            255
+          ]
+        }
       }
     }
   ]
