@@ -10,6 +10,7 @@ endif()
 project ("Astral")
 
 find_package(SDL3 REQUIRED)
+find_package(SDL3_ttf REQUIRED)
 
 # Kaynak dosyaları listesi (Yeni hiyerarşiye göre)
 set(SOURCES
@@ -24,7 +25,7 @@ set(SOURCES
     "engine/math/vec2.h"
 )
 
-add_executable(Astral ${SOURCES})
+add_executable(Astral ${SOURCES} "engine/core/scene.h" "games/pong/pong_game.h" "games/pong/pong_game.cpp" "engine/systems/movement_system.h" "engine/systems/render_system.h" "engine/systems/lifespan_system.h" "engine/systems/text_system.h")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET Astral PROPERTY CXX_STANDARD 20)
@@ -36,4 +37,10 @@ target_include_directories(Astral PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/engine
 )
 
-target_link_libraries(Astral PRIVATE SDL3::SDL3)
+target_link_libraries(Astral PRIVATE SDL3::SDL3 SDL3_ttf::SDL3_ttf)
+
+# Assets klasörünü build dizinine kopyala
+add_custom_command(TARGET Astral POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets"
+    "$<TARGET_FILE_DIR:Astral>/assets")
