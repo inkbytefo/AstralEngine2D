@@ -15,7 +15,7 @@ public:
 	virtual void update(float deltaTime)	= 0; // Her kare güncellemesi (Oyuna özel kalacak)
 	virtual bool isRunning() const			= 0; // Sahnenin çalışıp çalışmadığı
 
-	virtual void render(SDL_Renderer* renderer) = 0;
+	virtual void render(SDL_GPURenderPass* renderPass) = 0;
 
 	// Aksiyonu işle (Örn: "UP", true)
 	virtual void sDoAction(const std::string& actionName, bool started) = 0;
@@ -27,6 +27,10 @@ public:
 
 	const std::map<SDL_Keycode, std::string>& getActionMap() const {
 		return m_actionMap;
+	}
+
+	EntityManager& getEntityManager() {
+		return m_entityManager;
 	}
 
 	void setApp(App* app) { m_app = app; }

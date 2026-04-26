@@ -8,15 +8,18 @@
 // Veri odaklı tasarım (ECS) prensibi gereği mantıktan ayrılmıştır.
 struct CTransform
 {
-	glm::vec2 pos{ 0.0f, 0.0f };
-	glm::vec2 velocity{ 0.0f, 0.0f };
+	glm::vec3 pos{ 0.0f, 0.0f, 0.0f };
+	glm::vec3 velocity{ 0.0f, 0.0f, 0.0f };
+	glm::vec3 scale{ 1.0f, 1.0f, 1.0f };
+	glm::vec3 rotation{ 0.0f, 0.0f, 0.0f };
 	bool has{ false };
 
 	CTransform() = default;
-	CTransform(const glm::vec2& p, const glm::vec2& v)
+	CTransform(const glm::vec3& p, const glm::vec3& v)
 		: pos(p), velocity(v) {}
+	CTransform(const glm::vec2& p, const glm::vec2& v)
+		: pos(glm::vec3(p, 0.0f)), velocity(glm::vec3(v, 0.0f)) {}
 };
-
 
 // Varlıkların ekranda nasıl görüneceğini (boyut ve renk) tanımlar.
 // Çizim sistemi bu verileri kullanarak SDL_Render komutlarını oluşturur.
@@ -53,22 +56,50 @@ struct CInput
 struct CSprite
 {
 	bool has{ false };
-	SDL_Texture* texture{ nullptr };
+	SDL_GPUTexture* texture{ nullptr };
 	SDL_FRect srcRect{ 0.0f, 0.0f, 0.0f, 0.0f }; // Texture'dan hangi bölümü çizeceğimizi tanımlar
 	float angle{ 0.0f }; // Sprite'ın döndürülme açısı
 
 	CSprite() = default;
-	CSprite(SDL_Texture* tex) : texture(tex) 
+	CSprite(SDL_GPUTexture* tex) : texture(tex) 
 	{
 		if (tex)
 		{
+			// SDL_GPUTexture boyutu farkli alinir
+			/*
 			float w, h;
 			if (SDL_GetTextureSize(tex, &w, &h))
 			{
 				srcRect = { 0.0f, 0.0f, w, h };
 			}
+			*/
 		}
 	}
+};
+
+// 3D Mesh Component - GPU'da yaşayan mesh referansı
+struct CMesh
+{
+	bool has{ false };
+	std::string meshName; // AssetManager'daki mesh ismi
+	std::string materialName; // Pipeline/Material ismi (opsiyonel)
+
+	CMesh() = default;
+	CMesh(const std::string& mesh, const std::string& material = "default")
+		: meshName(mesh), materialName(material) {}
+};
+
+// Kamera Bileşeni - Render System bu bileşeni arayıp MVP hesaplamalarında kullanacak
+struct CCamera
+{
+	bool has{ false };
+	bool isActive{ true }; // Birden fazla kamera varsa hangisi aktif?
+	glm::mat4 view{ 1.0f };
+	glm::mat4 projection{ 1.0f };
+
+	CCamera() = default;
+	CCamera(const glm::mat4& v, const glm::mat4& p)
+		: view(v), projection(p) {}
 };
 
 struct CLifeSpan
@@ -89,7 +120,7 @@ struct CText
 	SDL_Color color{ 255, 255, 255, 255 };
 
 	// Cache için eklenenler
-	SDL_Texture* texture{ nullptr }; 
+	SDL_GPUTexture* texture{ nullptr }; 
 	float width{ 0 }, height{ 0 };
 	bool needsUpdate{ true }; // Metin değiştiğinde true yapılacak
 
@@ -103,7 +134,7 @@ struct CText
 	{
 		if (texture)
 		{
-			SDL_DestroyTexture(texture);
+			// SDL_ReleaseGPUTexture(m_gpuDevice, texture); // Device referansi lazim
 			texture = nullptr;
 		}
 	}

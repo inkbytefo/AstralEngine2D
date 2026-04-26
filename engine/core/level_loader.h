@@ -46,8 +46,8 @@ public:
                     auto& c = components["CTransform"];
                     
                     // Vec2 yerine glm::vec2
-                    glm::vec2 pos(c["pos"][0].get<float>(), c["pos"][1].get<float>());
-                    glm::vec2 vel(c["velocity"][0].get<float>(), c["velocity"][1].get<float>());
+                    glm::vec3 pos(c["pos"][0].get<float>(), c["pos"][1].get<float>(), 0.0f);
+                    glm::vec3 vel(c["velocity"][0].get<float>(), c["velocity"][1].get<float>(), 0.0f);
                     
                     if (e->has<CTransform>()) {
                         e->get<CTransform>().pos = pos;
@@ -102,8 +102,8 @@ public:
                         auto& ctext = e->get<CText>();
                         ctext.font = AssetManager::getInstance().getFont(fontId);
                         ctext.color = color;
-                        ctext.setText(text); // Metni de güncelleyelim!
-                        ctext.needsUpdate = true; // Rengi/fontu değişirse texture yenilensin
+                        ctext.setText(text);
+                        ctext.needsUpdate = true;
                     } else {
                         e->add<CText>(text, AssetManager::getInstance().getFont(fontId), color);
                     }

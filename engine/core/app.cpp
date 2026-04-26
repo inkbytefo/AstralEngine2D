@@ -5,6 +5,7 @@
 
 #include "core/asset_manager.h"
 #include "core/sound_manager.h"
+#include "systems/render_system.h"
 
 
 
@@ -17,12 +18,21 @@ bool App::init(const char* title, int width, int height)
 	if (!TTF_Init()) return false;
 
 	// İşletim sistemi seviyesinde bir pencere açar.
-	m_window = SDL_CreateWindow(title, width, height, 0);
+	m_window = SDL_CreateWindow(title, width, height, SDL_WINDOW_RESIZABLE);
 	if (!m_window) return false;
 
-	// Çizim işlemlerini yapacak olan donanım hızlandırmalı renderer'ı oluşturur.
-	m_renderer = SDL_CreateRenderer(m_window, nullptr);
-	if (!m_renderer) return false;
+	// SDL_GPU Cihazını oluştur (Vulkan ve SPIR-V'ye zorlayalım)
+	m_gpuDevice = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, "vulkan");
+	if (!m_gpuDevice) {
+		SDL_Log("SDL_GPU Cihazi olusturulamadi!");
+		return false;
+	}
+
+	// Pencereyi GPU cihazına bağla
+	if (!SDL_ClaimWindowForGPUDevice(m_gpuDevice, m_window)) {
+		SDL_Log("Pencere GPU cihazina baglanamadi!");
+		return false;
+	}
 
 	// Ses sistemini başlat
 	if (!SoundManager::getInstance().init()) {
@@ -75,7 +85,44 @@ void App::run()
 		}
 
 		m_scene->update(m_deltaTime); // Sahne güncellemesi (oyun mantığı)
-		m_scene->render(m_renderer);   // Sahne çizimi (görselleştirme)
+		
+		// --- MODERN RENDER DÖNGÜSÜ (SDL_GPU) ---
+		// 1. Komut Tamponu (Command Buffer) al
+		SDL_GPUCommandBuffer* commandBuffer = SDL_AcquireGPUCommandBuffer(m_gpuDevice);
+		if (!commandBuffer) continue;
+
+		// 2. Swapchain Texture (Ekran yüzeyi) bekle ve al
+		SDL_GPUTexture* swapchainTexture = nullptr;
+		Uint32 w, h; // Texture boyutlarını alacağımız değişkenler
+		if (!SDL_WaitAndAcquireGPUSwapchainTexture(commandBuffer, m_window, &swapchainTexture, &w, &h)) {
+			SDL_SubmitGPUCommandBuffer(commandBuffer); // Hata durumunda boşa gönder
+			continue;
+		}
+
+		if (swapchainTexture) {
+			// 3. Render Pass Başlat (Ekranı temizleme işlemi burada yapılır)
+			SDL_GPUColorTargetInfo colorTargetInfo = {};
+			colorTargetInfo.texture = swapchainTexture;
+			colorTargetInfo.clear_color = { 0.1f, 0.15f, 0.2f, 1.0f }; // Modern bir koyu mavi/gri
+			colorTargetInfo.load_op = SDL_GPU_LOADOP_CLEAR;
+			colorTargetInfo.store_op = SDL_GPU_STOREOP_STORE;
+
+			SDL_GPURenderPass* renderPass = SDL_BeginGPURenderPass(commandBuffer, &colorTargetInfo, 1, nullptr);
+			
+			// SAHNEYİ RENDER PASS İLE ÇİZ!
+			if (m_scene) {
+				m_scene->render(renderPass);
+				
+				// RenderSystem ile 3D mesh'leri çiz
+				Astral::RenderSystem::update(m_scene->getEntityManager(), commandBuffer, renderPass);
+			}
+			
+			// 6. Render Pass Bitirme
+			SDL_EndGPURenderPass(renderPass);
+		}
+
+		// 7. Komutları GPU'ya gönder (Swapchain texture alındığı için otomatik sunulur)
+		SDL_SubmitGPUCommandBuffer(commandBuffer);
 	}
 }
 
@@ -91,14 +138,15 @@ void App::shutdown()
 	m_scene.reset();
 
 	// Önce texture'ları sil (AssetManager)
-	AssetManager::getInstance().cleanup();
+	Astral::AssetManager::getInstance().cleanup();
 
 	// Ses sistemini temizle ve kapat
 	SoundManager::getInstance().cleanup();
 
 	// Ayrılan bellekleri temizle ve SDL sistemlerini kapat.
 	TTF_Quit();
-	SDL_DestroyRenderer(m_renderer);
+	SDL_ReleaseWindowFromGPUDevice(m_gpuDevice, m_window);
+	SDL_DestroyGPUDevice(m_gpuDevice);
 	SDL_DestroyWindow(m_window);
 	SDL_Quit();
 }

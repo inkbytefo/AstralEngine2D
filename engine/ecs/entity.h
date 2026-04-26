@@ -12,7 +12,9 @@ using ComponentTuple = std::tuple<
 	CInput,
 	CLifeSpan,
 	CText,
-	CSprite
+	CSprite,
+	CMesh,
+	CCamera
 >;
 
 // Oyundaki her türlü nesnenin (oyuncu, düşman, mermi) temelini oluşturur.
@@ -59,6 +61,18 @@ public:
 	{
 		get<T>().has = false;
 	}
+
+	// Public component access (ECS pattern için)
+	CTransform& cTransform = get<CTransform>();
+	CShape& cShape = get<CShape>();
+	CBBox& cBBox = get<CBBox>();
+	CInput& cInput = get<CInput>();
+	CLifeSpan& cLifeSpan = get<CLifeSpan>();
+	CText& cText = get<CText>();
+	CSprite& cSprite = get<CSprite>();
+	CMesh& cMesh = get<CMesh>();
+	CCamera& cCamera = get<CCamera>();
+
 private:
 	// Constructor private tutularak varlıkların rastgele değil, sadece yönetici üzerinden oluşturulması garanti edilir.
 	Entity(uint32_t id, const std::string& tag)

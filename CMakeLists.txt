@@ -17,7 +17,9 @@ find_package(SDL3_mixer REQUIRED)
 
 # Kaynak dosyaları listesi (Yeni hiyerarşiye göre)
 set(SOURCES
-    "games/pong/main.cpp"
+    "games/sandbox/main.cpp"
+    "games/sandbox/sandbox_scene.h"
+    "games/sandbox/sandbox_scene.cpp"
     "common.h"
     "engine/core/app.h"
     "engine/core/app.cpp"
@@ -25,9 +27,21 @@ set(SOURCES
     "engine/core/entity_manager.cpp"
     "engine/ecs/entity.h"
     "engine/ecs/components.h"
+    "engine/math/vertex.h"
 )
 
-add_executable(Astral ${SOURCES} "engine/core/scene.h" "games/pong/pong_game.h" "games/pong/pong_game.cpp" "games/pong/menu_scene.h" "games/pong/menu_scene.cpp" "engine/systems/movement_system.h" "engine/systems/render_system.h" "engine/systems/lifespan_system.h" "engine/systems/text_system.h" "engine/core/asset_manager.h" "engine/core/sound_manager.h" "engine/core/level_loader.h" "engine/core/json.hpp")
+add_executable(Astral ${SOURCES} 
+    "engine/core/scene.h" 
+    "engine/core/asset_manager.h"
+    "engine/core/shader_loader.h"
+    "engine/core/sound_manager.h" 
+    "engine/core/level_loader.h" 
+    "engine/core/json.hpp"
+    "engine/systems/movement_system.h" 
+    "engine/systems/render_system.h" 
+    "engine/systems/lifespan_system.h" 
+    "engine/systems/text_system.h"
+)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET Astral PROPERTY CXX_STANDARD 20)

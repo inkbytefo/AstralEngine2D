@@ -14,11 +14,12 @@ public:
 	void run(); // Ana oyun döngüsünü başlatır.
 	void shutdown(); // Kaynakları temizleyerek programı güvenli şekilde kapatır.
 	void changeScene(std::unique_ptr<Scene> newScene);
-	SDL_Renderer* getRenderer() const { return m_renderer; }
+	SDL_GPUDevice* getGPUDevice() const { return m_gpuDevice; }
+	SDL_Window* getWindow() const { return m_window; }
 
 private:
 	SDL_Window* m_window{ nullptr };
-	SDL_Renderer* m_renderer{ nullptr };
+	SDL_GPUDevice* m_gpuDevice{ nullptr };
 	bool			m_running{ false };
 	std::unique_ptr<Scene> m_scene{ nullptr };
 	std::unique_ptr<Scene> m_nextScene{ nullptr };
