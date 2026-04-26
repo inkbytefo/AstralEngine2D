@@ -1,4 +1,4 @@
-# src/main.cpp
+# games/pong/main.cpp
 
 ## Amacı ve Sorumlulukları
 Projenin giriş noktasıdır. İşletim sisteminden gelen çağrıyı karşılar ve `App` sınıfını başlatarak kontrolü ona devreder.
@@ -7,7 +7,7 @@ Projenin giriş noktasıdır. İşletim sisteminden gelen çağrıyı karşılar
 - `main()`: Standart C++ giriş fonksiyonu. `App` nesnesi oluşturur ve yaşam döngüsünü tetikler.
 
 ## İlişkiler
-- **Include eder:** `src/core/app.h`, `src/common.h`.
+- **Include eder:** `engine/core/app.h`, `common.h`.
 - **Kullanılır:** İşletim sistemi tarafından çalıştırılır.
 
 ## Kullanım Örneği

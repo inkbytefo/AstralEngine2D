@@ -1,5 +1,5 @@
 #pragma once
-#include "../math/vec2.h"
+#include "math/vec2.h"
 #include <stdint.h>
 
 // Varlıkların dünyadaki fiziksel varlığını (konum ve hız) temsil eder.
@@ -29,3 +29,20 @@ struct CShape
 		: width(w), height(h), r(r), g(g), b(b), a(a) {}
 
 };
+
+inline bool checkCollision(const CTransform& a, const CShape& as,
+	const CTransform& b, const CShape& bs)
+{
+	// buraya AABB formülünü uygula
+	float aLeft = a.pos.x;
+	float aRight = a.pos.x + as.width;
+	float aTop = a.pos.y;
+	float aBottom = a.pos.y + as.height;
+
+	float bLeft = b.pos.x;
+	float bRight = b.pos.x + bs.width;
+	float bTop = b.pos.y;
+	float bBottom = b.pos.y + bs.height;
+	
+	return aLeft < bRight && aRight > bLeft && aTop < bBottom && aBottom > bTop;
+}

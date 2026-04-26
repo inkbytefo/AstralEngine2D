@@ -1,6 +1,4 @@
-# CMakeList.txt: Üst düzey CMake proje dosyası, genel yapılandırma gerçekleştirin
-# ve alt projeleri buraya ekleyin.
-#
+# CMakeList.txt: Astral projesi için ana yapılandırma dosyası
 cmake_minimum_required (VERSION 3.10)
 
 # Destekleniyorsa MSVC derleyicileri için Çalışırken Yeniden Yükleme aracını etkinleştirin.
@@ -11,5 +9,31 @@ endif()
 
 project ("Astral")
 
-# Alt projeleri ekleyin.
-add_subdirectory ("src")
+find_package(SDL3 REQUIRED)
+
+# Kaynak dosyaları listesi (Yeni hiyerarşiye göre)
+set(SOURCES
+    "games/pong/main.cpp"
+    "common.h"
+    "engine/core/app.h"
+    "engine/core/app.cpp"
+    "engine/core/entity_manager.h"
+    "engine/core/entity_manager.cpp"
+    "engine/ecs/entity.h"
+    "engine/ecs/components.h"
+    "engine/math/vec2.h"
+)
+
+add_executable(Astral ${SOURCES})
+
+if (CMAKE_VERSION VERSION_GREATER 3.12)
+  set_property(TARGET Astral PROPERTY CXX_STANDARD 20)
+endif()
+
+# Engine ve kök dizini include yollarına ekle
+target_include_directories(Astral PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/engine
+)
+
+target_link_libraries(Astral PRIVATE SDL3::SDL3)

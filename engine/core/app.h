@@ -1,6 +1,8 @@
 #pragma once
 #include <SDL3/SDL.h>
-#include "entity_manager.h"
+#include "math/vec2.h"
+#include "core/entity_manager.h"
+
 
 // Uygulamanın ana iskeletini ve SDL yönetimini sağlayan sınıf.
 // Oyunun yaşam döngüsü (başlatma, döngü, sonlandırma) burada kontrol edilir.

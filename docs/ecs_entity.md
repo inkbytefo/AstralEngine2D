@@ -1,4 +1,4 @@
-# src/ecs/entity.h
+# engine/ecs/entity.h
 
 ## Amacı ve Sorumlulukları
 `Entity` sınıfı, oyun dünyasındaki her bir nesneyi temsil eder. Kendi başına bir işlevi yoktur; ona eklenen bileşenler (transform, shape) sayesinde anlam kazanır.
@@ -12,8 +12,8 @@
 - `tag()`: Varlık türü (örn: "player", "enemy").
 
 ## İlişkiler
-- **Include eder:** `src/ecs/components.h`.
-- **Kullanılır:** `src/core/entity_manager.h` tarafından oluşturulur ve yönetilir.
+- **Include eder:** `engine/ecs/components.h`.
+- **Kullanılır:** `engine/core/entity_manager.h` tarafından oluşturulur ve yönetilir.
 
 ## Kullanım Örneği
 ```cpp

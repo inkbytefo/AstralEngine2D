@@ -1,4 +1,4 @@
-# src/ecs/components.h
+# engine/ecs/components.h
 
 ## Amacı ve Sorumlulukları
 Bu dosya, varlıkların (Entity) sahip olabileceği veri paketlerini (Bileşenler) tanımlar. ECS (Entity-Component-System) mimarisinin "Bileşen" kısmını temsil eder. Sadece veri tutarlar, mantık içermezler.
@@ -15,8 +15,8 @@ Varlığın nasıl çizileceğini tanımlar.
 - `uint8_t r, g, b, a`: Renk ve şeffaflık (0-255).
 
 ## İlişkiler
-- **Include eder:** `src/math/vec2.h`.
-- **Kullanılır:** `src/ecs/entity.h` içinde varlık üyeleri olarak yer alırlar.
+- **Include eder:** `engine/math/vec2.h`.
+- **Kullanılır:** `engine/ecs/entity.h` içinde varlık üyeleri olarak yer alırlar.
 
 ## Kullanım Örneği
 ```cpp

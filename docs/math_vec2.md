@@ -1,4 +1,4 @@
-# src/math/vec2.h
+# engine/math/vec2.h
 
 ## Amacı ve Sorumlulukları
 `Vec2` yapısı, oyun dünyasındaki 2 boyutlu vektör işlemlerini (konum, hız, ivme vb.) basitleştirmek için tasarlanmıştır. Matematiksel işlemleri operatör aşırı yüklemeleri (operator overloading) ile doğal bir şekilde yapmayı sağlar.

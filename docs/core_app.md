@@ -1,4 +1,4 @@
-# src/core/app.h / app.cpp
+# engine/core/app.h / app.cpp
 
 ## Amacı ve Sorumlulukları
 `App` sınıfı, oyunun ana motorudur. SDL penceresini açar, ana döngüyü (Main Loop) yönetir ve girdileri işler.
@@ -11,8 +11,8 @@
 - `render()`: `EntityManager`'daki varlıkları ekrana çizer.
 
 ## İlişkiler
-- **Include eder:** `SDL3/SDL.h`, `src/core/entity_manager.h`.
-- **Kullanılır:** `main` fonksiyonu (`src/main.cpp`) tarafından başlatılır.
+- **Include eder:** `SDL3/SDL.h`, `engine/core/entity_manager.h`.
+- **Kullanılır:** `main` fonksiyonu (`games/pong/main.cpp`) tarafından başlatılır.
 
 ## Kullanım Örneği
 ```cpp

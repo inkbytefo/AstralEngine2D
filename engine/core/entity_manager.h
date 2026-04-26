@@ -3,7 +3,7 @@
 #include <map>
 #include <string>
 #include <memory>
-#include "../ecs/entity.h"
+#include "ecs/entity.h"
 
 // Varlık listeleri için kısa adlar, kodun okunabilirliğini artırır.
 using EntityVec = std::vector<std::shared_ptr<Entity>>;

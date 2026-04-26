@@ -1,4 +1,4 @@
-# src/core/entity_manager.h / entity_manager.cpp
+# engine/core/entity_manager.h / entity_manager.cpp
 
 ## Amacı ve Sorumlulukları
 `EntityManager`, tüm varlıkların yaşam döngüsünü yöneten "fabrikadır". Varlıkların oluşturulması, listelenmesi ve silinmesi bu sınıfın sorumluluğundadır. Gecikmeli ekleme/silme (delayed dispatch) yaparak döngü güvenliğini sağlar.
@@ -10,8 +10,8 @@
 - `getEntities(tag)`: Belirli bir gruptaki varlıkları döndürür.
 
 ## İlişkiler
-- **Include eder:** `src/ecs/entity.h`, `<vector>`, `<map>`, `<memory>`.
-- **Kullanılır:** `src/core/app.h` sınıfı tarafından oyun dünyasını yönetmek için kullanılır.
+- **Include eder:** `engine/ecs/entity.h`, `<vector>`, `<map>`, `<memory>`.
+- **Kullanılır:** `engine/core/app.h` sınıfı tarafından oyun dünyasını yönetmek için kullanılır.
 
 ## Kullanım Örneği
 ```cpp
