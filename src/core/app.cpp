@@ -17,10 +17,10 @@ bool App::init(const char* title, int width, int height)
 	m_lastTime = SDL_GetTicks();
 	m_running = true;
 
-	// Örnek bir oyuncu varlığı oluştur ve başlangıç değerlerini ata.
-	auto player = m_entityManager.addEntity("player");
-	player->transform = CTransform({ 400.0f, 300.0f }, { 0.0f, 0.0f });
-	player->shape = CShape(150.0f, 200.0f, 255, 0, 0, 255);
+	//// Örnek bir oyuncu varlığı oluştur ve başlangıç değerlerini ata.
+	//auto player = m_entityManager.addEntity("player");
+	//player->transform = CTransform({ 400.0f, 300.0f }, { 0.0f, 0.0f });
+	//player->shape = CShape(150.0f, 200.0f, 255, 0, 0, 255);
 
 	// Yeni eklenen varlığın hemen ilk karede hazır olması için güncelleme yapılır.
 	m_entityManager.update();
@@ -68,18 +68,18 @@ void App::update()
 	m_entityManager.update();
 
 	// Klavye durumuna göre oyuncu hareketini belirler.
-	const bool* keys = SDL_GetKeyboardState(nullptr);
-	for (auto& e : m_entityManager.getEntities("player"))
-	{
-		e->transform.velocity = { 0.0f, 0.0f };
-		if (keys[SDL_SCANCODE_A]) e->transform.velocity.x = -200.0f;
-		if (keys[SDL_SCANCODE_W]) e->transform.velocity.y = -200.0f;
-		if (keys[SDL_SCANCODE_S]) e->transform.velocity.y = 200.0f;
-		if (keys[SDL_SCANCODE_D]) e->transform.velocity.x = 200.0f;
-		
-		// Konumu hız ve geçen süre (delta time) ile güncelleyerek akıcı hareket sağlarız.
-		e->transform.pos += e->transform.velocity * m_deltaTime;
-	}
+	//const bool* keys = SDL_GetKeyboardState(nullptr);
+	//for (auto& e : m_entityManager.getEntities("player"))
+	//{
+	//	e->transform.velocity = { 0.0f, 0.0f };
+	//	if (keys[SDL_SCANCODE_A]) e->transform.velocity.x = -200.0f;
+	//	if (keys[SDL_SCANCODE_W]) e->transform.velocity.y = -200.0f;
+	//	if (keys[SDL_SCANCODE_S]) e->transform.velocity.y = 200.0f;
+	//	if (keys[SDL_SCANCODE_D]) e->transform.velocity.x = 200.0f;
+	//	
+	//	// Konumu hız ve geçen süre (delta time) ile güncelleyerek akıcı hareket sağlarız.
+	//	e->transform.pos += e->transform.velocity * m_deltaTime;
+	//}
 
 }
 
