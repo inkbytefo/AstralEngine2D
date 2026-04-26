@@ -1,0 +1,27 @@
+# Build directories
+out/
+build/
+bin/
+
+# Visual Studio
+.vs/
+*.sln
+*.vcxproj
+*.user
+*.suo
+*.db
+*.opendb
+*.slnx
+*.sqlite
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+CMakeSettings.json
+CMakeUserPresets.json
+install_manifest.txt
+*.cmake
+
+# OS files
+.DS_Store
+Thumbs.db
