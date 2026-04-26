@@ -49,6 +49,27 @@ struct CInput
 	bool up{ false }, down{ false }, left{ false }, right{ false };
 };
 
+struct CSprite
+{
+	bool has{ false };
+	SDL_Texture* texture{ nullptr };
+	SDL_FRect srcRect{ 0.0f, 0.0f, 0.0f, 0.0f }; // Texture'dan hangi bölümü çizeceğimizi tanımlar
+	float angle{ 0.0f }; // Sprite'ın döndürülme açısı
+
+	CSprite() = default;
+	CSprite(SDL_Texture* tex) : texture(tex) 
+	{
+		if (tex)
+		{
+			float w, h;
+			if (SDL_GetTextureSize(tex, &w, &h))
+			{
+				srcRect = { 0.0f, 0.0f, w, h };
+			}
+		}
+	}
+};
+
 struct CLifeSpan
 {
 	bool has{ false };
@@ -94,6 +115,7 @@ struct CText
         }
     }
 };
+
 
 inline bool checkCollision(const CTransform& a, const CShape& as,
 	const CTransform& b, const CShape& bs)

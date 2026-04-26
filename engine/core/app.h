@@ -13,7 +13,7 @@ public:
 	bool init(const char* title, int width, int height);
 	void run(); // Ana oyun döngüsünü başlatır.
 	void shutdown(); // Kaynakları temizleyerek programı güvenli şekilde kapatır.
-	void setScene(std::unique_ptr<Scene> newScene);
+	void changeScene(std::unique_ptr<Scene> newScene);
 	SDL_Renderer* getRenderer() const { return m_renderer; }
 
 private:
@@ -21,6 +21,7 @@ private:
 	SDL_Renderer* m_renderer{ nullptr };
 	bool			m_running{ false };
 	std::unique_ptr<Scene> m_scene{ nullptr };
+	std::unique_ptr<Scene> m_nextScene{ nullptr };
 	Uint64 m_lastTime{ 0 }; // Delta time hesaplaması için önceki kare zamanı.
 	float m_deltaTime{ 0.0f }; // Kareler arası geçen süre (donanımdan bağımsız hız için).
 };

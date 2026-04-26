@@ -11,6 +11,9 @@ project ("Astral")
 
 find_package(SDL3 REQUIRED)
 find_package(SDL3_ttf REQUIRED)
+find_package(SDL3_image REQUIRED)
+find_package(SDL3_mixer REQUIRED)
+
 
 # Kaynak dosyaları listesi (Yeni hiyerarşiye göre)
 set(SOURCES
@@ -25,7 +28,7 @@ set(SOURCES
     "engine/math/vec2.h"
 )
 
-add_executable(Astral ${SOURCES} "engine/core/scene.h" "games/pong/pong_game.h" "games/pong/pong_game.cpp" "engine/systems/movement_system.h" "engine/systems/render_system.h" "engine/systems/lifespan_system.h" "engine/systems/text_system.h")
+add_executable(Astral ${SOURCES} "engine/core/scene.h" "games/pong/pong_game.h" "games/pong/pong_game.cpp" "games/pong/menu_scene.h" "games/pong/menu_scene.cpp" "engine/systems/movement_system.h" "engine/systems/render_system.h" "engine/systems/lifespan_system.h" "engine/systems/text_system.h" "engine/core/asset_manager.h" "engine/core/sound_manager.h" "engine/core/level_loader.h" "engine/core/json.hpp")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET Astral PROPERTY CXX_STANDARD 20)
@@ -37,7 +40,7 @@ target_include_directories(Astral PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/engine
 )
 
-target_link_libraries(Astral PRIVATE SDL3::SDL3 SDL3_ttf::SDL3_ttf)
+target_link_libraries(Astral PRIVATE SDL3::SDL3 SDL3_ttf::SDL3_ttf SDL3_image::SDL3_image SDL3_mixer::SDL3_mixer)
 
 # Assets klasörünü build dizinine kopyala
 add_custom_command(TARGET Astral POST_BUILD

@@ -5,6 +5,7 @@
 #include "common.h"
 #include "core/app.h"
 #include "pong_game.h"
+#include "menu_scene.h"
 
 using namespace std;
 
@@ -18,7 +19,7 @@ int main(int argc, char* argv[])
 		SDL_Log("Uygulama baslatilamadi: %s", SDL_GetError());
 		return -1;
 	}
-	app.setScene(make_unique<PongGame>(app.getRenderer())); // Pong oyun sahnesini başlat
+	app.changeScene(make_unique<MenuScene>(app.getRenderer())); // Menu sahnesini başlat
 	app.run();      // Ana döngü
 	app.shutdown(); // Temizlik
 	

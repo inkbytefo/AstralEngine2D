@@ -11,7 +11,8 @@ using ComponentTuple = std::tuple<
 	CBBox,
 	CInput,
 	CLifeSpan,
-	CText
+	CText,
+	CSprite
 >;
 
 // Oyundaki her türlü nesnenin (oyuncu, düşman, mermi) temelini oluşturur.
