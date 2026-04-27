@@ -87,6 +87,12 @@ void App::run()
 					m_scene->sDoAction(actionMap.at(key), started);
 				}
 			}
+            else if (event.type == SDL_EVENT_MOUSE_MOTION) {
+                if (m_scene) m_scene->onMouseMove(event.motion.x, event.motion.y, event.motion.xrel, event.motion.yrel);
+            }
+            else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
+                if (m_scene) m_scene->onMouseButton(event.button.button, event.button.down, event.button.x, event.button.y);
+            }
 		}
 
 		m_scene->update(m_deltaTime); // Sahne güncellemesi (oyun mantığı)

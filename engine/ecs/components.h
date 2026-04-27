@@ -114,6 +114,23 @@ struct CCamera
 		: view(v), projection(p) {}
 };
 
+// Free Look - Kamera kontrol verileri
+struct CFreeLook
+{
+    bool has{ false };
+    float yaw{ -90.0f };
+    float pitch{ 0.0f };
+    float speed{ 10.0f };
+    float sensitivity{ 0.1f };
+    
+    // Mouse durumu
+    bool isRightMouseDown{ false };
+    float lastX{ 0.0f }, lastY{ 0.0f };
+
+    CFreeLook() = default;
+    CFreeLook(float s, float sens) : speed(s), sensitivity(sens) {}
+};
+
 // Işık bileşeni (PBR için)
 struct CLight
 {

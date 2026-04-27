@@ -25,6 +25,7 @@ set(SOURCES
     "engine/core/app.cpp"
     "engine/core/entity_manager.h"
     "engine/core/entity_manager.cpp"
+    "engine/core/gltf_loader.cpp"
     "engine/ecs/entity.h"
     "engine/ecs/components.h"
     "engine/math/vertex.h"
@@ -35,12 +36,15 @@ add_executable(Astral ${SOURCES}
     "engine/core/asset_manager.h"
     "engine/core/shader_loader.h"
     "engine/core/sound_manager.h" 
-    "engine/core/level_loader.h" 
+    "engine/core/level_loader.h"
+    "engine/core/gltf_loader.h"
     "engine/core/json.hpp"
     "engine/systems/movement_system.h" 
     "engine/systems/render_system.h" 
     "engine/systems/lifespan_system.h" 
     "engine/systems/text_system.h"
+    "engine/systems/camera_system.h"
+    "engine/systems/transform_system.h"
 )
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
@@ -54,8 +58,11 @@ target_include_directories(Astral PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/engine/vendor/glm
 )
 
-# Geliştirme aşamasında kaynak assets klasörüne erişmek için macro
-target_compile_definitions(Astral PRIVATE ENGINE_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
+# Geliştirme aşamasında kaynak assets klasörüne erişmek için macro ve uyarıları kapatma
+target_compile_definitions(Astral PRIVATE 
+    ENGINE_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets"
+    _CRT_SECURE_NO_WARNINGS
+)
 
 target_link_libraries(Astral PRIVATE SDL3::SDL3 SDL3_ttf::SDL3_ttf SDL3_image::SDL3_image SDL3_mixer::SDL3_mixer)
 

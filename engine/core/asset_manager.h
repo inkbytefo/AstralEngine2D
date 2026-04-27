@@ -17,6 +17,8 @@ struct GPUMesh {
     SDL_GPUBuffer* indexBuffer = nullptr;
     uint32_t vertexCount = 0;
     uint32_t indexCount = 0;
+    uint32_t vertexOffset = 0; // Bayt cinsinden
+    uint32_t indexOffset = 0;  // Bayt cinsinden
 };
 
 // Material - Pipeline + Texture + Properties (DOD uyumlu)
@@ -53,6 +55,36 @@ struct PipelineKey {
 };
 
 class AssetManager {
+private:
+    SDL_GPUDevice* m_gpuDevice{ nullptr };
+    
+    // Kaynak Haritaları (Resource Maps)
+    std::map<std::string, std::unique_ptr<GPUMesh>> m_meshes;
+    std::map<std::string, std::unique_ptr<Material>> m_materials;
+    std::map<std::string, SDL_GPUGraphicsPipeline*> m_pipelines;
+    std::map<std::string, SDL_GPUTexture*> m_textures;
+    std::map<std::string, TTF_Font*> m_fonts;
+    
+    // Temizlik Listeleri (Cleanup Lists)
+    std::vector<SDL_GPUShader*> m_shaders;
+    std::vector<SDL_GPUSampler*> m_samplers;
+    
+    // MEGA-BUFFER (Bindless Architecture) Değişkenleri
+    SDL_GPUBuffer* m_megaVertexBuffer{ nullptr };
+    SDL_GPUBuffer* m_megaIndexBuffer{ nullptr };
+    uint32_t m_megaVertexOffset{ 0 }; // Bayt cinsinden
+    uint32_t m_megaIndexOffset{ 0 };  // Bayt cinsinden
+    const uint32_t MEGA_VERTEX_CAPACITY{ 50 * 1024 * 1024 }; // 50 MB
+    const uint32_t MEGA_INDEX_CAPACITY{ 20 * 1024 * 1024 };  // 20 MB
+
+    // Varsayılan dokular (Fallback textures)
+    SDL_GPUTexture* m_whiteTexture{ nullptr };
+    SDL_GPUTexture* m_blackTexture{ nullptr };
+    SDL_GPUTexture* m_defaultNormalTexture{ nullptr };
+
+    AssetManager() = default;
+    ~AssetManager() { cleanup(); }
+
 public:
     static AssetManager& getInstance() {
         static AssetManager instance;
@@ -62,14 +94,90 @@ public:
     // GPU Device'ı set et (App başlangıcında çağrılmalı)
     void setGPUDevice(SDL_GPUDevice* device) {
         m_gpuDevice = device;
+        initMegaBuffers(); // Device geldiğinde mega-buffer'ları oluştur
+        createDefaultTextures(); // Varsayılan dokuları oluştur
     }
 
+private:
+    void initMegaBuffers() {
+        if (!m_gpuDevice || m_megaVertexBuffer) return;
+
+        SDL_GPUBufferCreateInfo vInfo = {};
+        vInfo.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
+        vInfo.size = MEGA_VERTEX_CAPACITY;
+        m_megaVertexBuffer = SDL_CreateGPUBuffer(m_gpuDevice, &vInfo);
+
+        SDL_GPUBufferCreateInfo iInfo = {};
+        iInfo.usage = SDL_GPU_BUFFERUSAGE_INDEX;
+        iInfo.size = MEGA_INDEX_CAPACITY;
+        m_megaIndexBuffer = SDL_CreateGPUBuffer(m_gpuDevice, &iInfo);
+
+        SDL_Log("Mega-Buffers oluşturuldu! (Vertex: 50MB, Index: 20MB)");
+    }
+
+    void createDefaultTextures() {
+        if (!m_gpuDevice || m_whiteTexture) return;
+
+        m_whiteTexture = create1x1Texture(255, 255, 255, 255);
+        m_blackTexture = create1x1Texture(0, 0, 0, 255);
+        m_defaultNormalTexture = create1x1Texture(128, 128, 255, 255); // Flat normal (0.5, 0.5, 1.0)
+        
+        SDL_Log("Varsayılan (Fallback) dokular oluşturuldu.");
+    }
+
+    SDL_GPUTexture* create1x1Texture(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+        SDL_GPUTextureCreateInfo texInfo = {};
+        texInfo.type = SDL_GPU_TEXTURETYPE_2D;
+        texInfo.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+        texInfo.width = 1;
+        texInfo.height = 1;
+        texInfo.layer_count_or_depth = 1;
+        texInfo.num_levels = 1;
+        texInfo.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
+
+        SDL_GPUTexture* texture = SDL_CreateGPUTexture(m_gpuDevice, &texInfo);
+
+        SDL_GPUTransferBufferCreateInfo transferInfo = {};
+        transferInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+        transferInfo.size = 4;
+        SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(m_gpuDevice, &transferInfo);
+
+        uint8_t* data = (uint8_t*)SDL_MapGPUTransferBuffer(m_gpuDevice, transferBuffer, false);
+        if (data) {
+            data[0] = r; data[1] = g; data[2] = b; data[3] = a;
+            SDL_UnmapGPUTransferBuffer(m_gpuDevice, transferBuffer);
+        }
+
+        SDL_GPUCommandBuffer* cmd = SDL_AcquireGPUCommandBuffer(m_gpuDevice);
+        SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(cmd);
+        
+        SDL_GPUTextureTransferInfo src = {};
+        src.transfer_buffer = transferBuffer;
+        src.offset = 0;
+
+        SDL_GPUTextureRegion dst = {};
+        dst.texture = texture;
+        dst.w = 1;
+        dst.h = 1;
+        dst.d = 1;
+
+        SDL_UploadToGPUTexture(copy, &src, &dst, false);
+        SDL_EndGPUCopyPass(copy);
+        SDL_SubmitGPUCommandBuffer(cmd);
+        
+        SDL_WaitForGPUIdle(m_gpuDevice);
+        SDL_ReleaseGPUTransferBuffer(m_gpuDevice, transferBuffer);
+
+        return texture;
+    }
+public:
+    SDL_GPUTexture* getWhiteTexture() const { return m_whiteTexture; }
+    SDL_GPUTexture* getBlackTexture() const { return m_blackTexture; }
+    SDL_GPUTexture* getNormalTexture() const { return m_defaultNormalTexture; }
     // ============================================================================
-    // MESH UPLOAD - Staging Buffer ile VRAM'e yükleme
+    // MESH UPLOAD - Staging Buffer ile Mega-Buffer'a Append
     // ============================================================================
     
-    // Mesh'i GPU'ya yükle (vertices + indices)
-    // Cycling: true = her frame yeni mesh yüklenebilir, false = static mesh
     GPUMesh* uploadMesh(const std::string& name, 
                         const std::vector<Vertex>& vertices,
                         const std::vector<uint32_t>& indices,
@@ -80,92 +188,69 @@ public:
             return nullptr;
         }
 
-        // Vertex Buffer oluştur (VRAM)
-        SDL_GPUBufferCreateInfo vertexBufferInfo = {};
-        vertexBufferInfo.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
-        vertexBufferInfo.size = static_cast<uint32_t>(vertices.size() * sizeof(Vertex));
-        
-        SDL_GPUBuffer* vertexBuffer = SDL_CreateGPUBuffer(m_gpuDevice, &vertexBufferInfo);
+        uint32_t vSize = static_cast<uint32_t>(vertices.size() * sizeof(Vertex));
+        uint32_t iSize = static_cast<uint32_t>(indices.size() * sizeof(uint32_t));
 
-        // Index Buffer oluştur (VRAM)
-        SDL_GPUBufferCreateInfo indexBufferInfo = {};
-        indexBufferInfo.usage = SDL_GPU_BUFFERUSAGE_INDEX;
-        indexBufferInfo.size = static_cast<uint32_t>(indices.size() * sizeof(uint32_t));
-        
-        SDL_GPUBuffer* indexBuffer = SDL_CreateGPUBuffer(m_gpuDevice, &indexBufferInfo);
-
-        if (!vertexBuffer || !indexBuffer) {
-            SDL_Log("AssetManager: Buffer oluşturulamadı!");
+        if (m_megaVertexOffset + vSize > MEGA_VERTEX_CAPACITY || 
+            m_megaIndexOffset + iSize > MEGA_INDEX_CAPACITY) {
+            SDL_Log("HATA: Mega-Buffer kapasitesi aşıldı! (%s)", name.c_str());
             return nullptr;
         }
 
-        // Transfer Buffer oluştur (Staging - CPU tarafında)
-        size_t totalSize = (vertices.size() * sizeof(Vertex)) + (indices.size() * sizeof(uint32_t));
-        
+        // Transfer Buffer oluştur (Staging - CPU)
+        size_t totalSize = vSize + iSize;
         SDL_GPUTransferBufferCreateInfo transferBufferInfo = {};
         transferBufferInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
         transferBufferInfo.size = static_cast<uint32_t>(totalSize);
-        
         SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(m_gpuDevice, &transferBufferInfo);
 
-        // Transfer buffer'a veriyi yaz (CPU tarafında)
+        // Veriyi transfer buffer'a yaz
         void* transferData = SDL_MapGPUTransferBuffer(m_gpuDevice, transferBuffer, false);
         if (transferData) {
-            // Vertex data
-            memcpy(transferData, vertices.data(), vertices.size() * sizeof(Vertex));
-            // Index data (vertex data'dan sonra)
-            memcpy(static_cast<char*>(transferData) + vertices.size() * sizeof(Vertex),
-                   indices.data(), indices.size() * sizeof(uint32_t));
+            memcpy(transferData, vertices.data(), vSize);
+            memcpy(static_cast<char*>(transferData) + vSize, indices.data(), iSize);
             SDL_UnmapGPUTransferBuffer(m_gpuDevice, transferBuffer);
         }
 
-        // Copy Pass ile GPU'ya transfer et
+        // Copy Pass (VRAM'deki Mega-Buffer'ın sonuna ekle)
         SDL_GPUCommandBuffer* uploadCmd = SDL_AcquireGPUCommandBuffer(m_gpuDevice);
         SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(uploadCmd);
 
-        // Vertex buffer upload
-        SDL_GPUTransferBufferLocation vertexTransferLoc = {};
-        vertexTransferLoc.transfer_buffer = transferBuffer;
-        vertexTransferLoc.offset = 0;
-        
-        SDL_GPUBufferRegion vertexBufferRegion = {};
-        vertexBufferRegion.buffer = vertexBuffer;
-        vertexBufferRegion.offset = 0;
-        vertexBufferRegion.size = static_cast<uint32_t>(vertices.size() * sizeof(Vertex));
-        
+        // Vertex buffer upload (Offsetli)
+        SDL_GPUTransferBufferLocation vertexTransferLoc = { transferBuffer, 0 };
+        SDL_GPUBufferRegion vertexBufferRegion = { m_megaVertexBuffer, m_megaVertexOffset, vSize };
         SDL_UploadToGPUBuffer(copyPass, &vertexTransferLoc, &vertexBufferRegion, false);
 
-        // Index buffer upload
-        SDL_GPUTransferBufferLocation indexTransferLoc = {};
-        indexTransferLoc.transfer_buffer = transferBuffer;
-        indexTransferLoc.offset = static_cast<uint32_t>(vertices.size() * sizeof(Vertex));
-        
-        SDL_GPUBufferRegion indexBufferRegion = {};
-        indexBufferRegion.buffer = indexBuffer;
-        indexBufferRegion.offset = 0;
-        indexBufferRegion.size = static_cast<uint32_t>(indices.size() * sizeof(uint32_t));
-        
+        // Index buffer upload (Offsetli)
+        SDL_GPUTransferBufferLocation indexTransferLoc = { transferBuffer, vSize };
+        SDL_GPUBufferRegion indexBufferRegion = { m_megaIndexBuffer, m_megaIndexOffset, iSize };
         SDL_UploadToGPUBuffer(copyPass, &indexTransferLoc, &indexBufferRegion, false);
 
         SDL_EndGPUCopyPass(copyPass);
         SDL_SubmitGPUCommandBuffer(uploadCmd);
 
-        // Transfer buffer'ı temizle
         SDL_ReleaseGPUTransferBuffer(m_gpuDevice, transferBuffer);
 
-        // Mesh handle'ı cache'e ekle (Modern C++20 - Smart Pointer)
+        // Mesh handle'ı cache'e ekle
         auto mesh = std::make_unique<GPUMesh>();
-        mesh->vertexBuffer = vertexBuffer;
-        mesh->indexBuffer = indexBuffer;
+        mesh->vertexBuffer = m_megaVertexBuffer; 
+        mesh->indexBuffer = m_megaIndexBuffer;
         mesh->vertexCount = static_cast<uint32_t>(vertices.size());
         mesh->indexCount = static_cast<uint32_t>(indices.size());
+        mesh->vertexOffset = m_megaVertexOffset;
+        mesh->indexOffset = m_megaIndexOffset;
 
-        GPUMesh* rawPtr = mesh.get(); // Raw pointer döndür (kullanım için)
+        // Global offsetleri ilerlet
+        m_megaVertexOffset += vSize;
+        m_megaIndexOffset += iSize;
+
+        GPUMesh* rawPtr = mesh.get();
+        
+        SDL_Log("AssetManager: Mesh '%s' Mega-Buffer'a eklendi (V Offset: %u, I Offset: %u)", 
+                name.c_str(), rawPtr->vertexOffset, rawPtr->indexOffset);
+
         m_meshes[name] = std::move(mesh);
-        
-        SDL_Log("AssetManager: Mesh '%s' yüklendi (V:%u, I:%u)", 
-                name.c_str(), rawPtr->vertexCount, rawPtr->indexCount);
-        
+                
         return rawPtr;
     }
 
@@ -193,7 +278,7 @@ public:
     }
 
     // ============================================================================
-    // PIPELINE MANAGEMENT - Pipeline önbellekleme
+    // PIPELINE MANAGEMENT
     // ============================================================================
     
     SDL_GPUGraphicsPipeline* createPipeline(
@@ -206,46 +291,31 @@ public:
     {
         if (!m_gpuDevice) return nullptr;
 
-        // Vertex Input State - Vertex layout'u tanımla
         SDL_GPUVertexAttribute attributes[5];
         Vertex::getAttributeDescriptions(attributes);
 
         SDL_GPUVertexBufferDescription vertexBufferDesc = Vertex::getBindingDescription();
 
-        // Vertex Input State
         SDL_GPUVertexInputState vertexInputState = {};
         vertexInputState.vertex_buffer_descriptions = &vertexBufferDesc;
         vertexInputState.num_vertex_buffers = 1;
         vertexInputState.vertex_attributes = attributes;
         vertexInputState.num_vertex_attributes = 5;
 
-        // Rasterizer State
         SDL_GPURasterizerState rasterizerState = {};
         rasterizerState.fill_mode = SDL_GPU_FILLMODE_FILL;
         rasterizerState.cull_mode = cullMode;
         rasterizerState.front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE;
-        rasterizerState.depth_bias_constant_factor = 0.0f;
-        rasterizerState.depth_bias_clamp = 0.0f;
-        rasterizerState.depth_bias_slope_factor = 0.0f;
-        rasterizerState.enable_depth_bias = false;
         rasterizerState.enable_depth_clip = true;
 
-        // Multisample State
         SDL_GPUMultisampleState multisampleState = {};
         multisampleState.sample_count = SDL_GPU_SAMPLECOUNT_1;
-        multisampleState.sample_mask = 0;
-        multisampleState.enable_mask = false;
 
-        // Depth Stencil State
         SDL_GPUDepthStencilState depthStencilState = {};
         depthStencilState.compare_op = SDL_GPU_COMPAREOP_LESS_OR_EQUAL;
-        depthStencilState.compare_mask = 0xFF;
-        depthStencilState.write_mask = 0xFF;
         depthStencilState.enable_depth_test = enableDepth;
         depthStencilState.enable_depth_write = enableDepth;
-        depthStencilState.enable_stencil_test = false;
 
-        // Blend State
         SDL_GPUColorTargetBlendState blendState = {};
         blendState.src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA;
         blendState.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
@@ -255,21 +325,17 @@ public:
         blendState.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
         blendState.color_write_mask = 0xF;
         blendState.enable_blend = true;
-        blendState.enable_color_write_mask = false;
 
-        // Color Target Description
         SDL_GPUColorTargetDescription colorTargetDesc = {};
         colorTargetDesc.format = renderTargetFormat;
         colorTargetDesc.blend_state = blendState;
 
-        // Target Info
         SDL_GPUGraphicsPipelineTargetInfo targetInfo = {};
         targetInfo.color_target_descriptions = &colorTargetDesc;
         targetInfo.num_color_targets = 1;
         targetInfo.depth_stencil_format = enableDepth ? SDL_GPU_TEXTUREFORMAT_D16_UNORM : SDL_GPU_TEXTUREFORMAT_INVALID;
         targetInfo.has_depth_stencil_target = enableDepth;
 
-        // Pipeline Create Info
         SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo = {};
         pipelineCreateInfo.vertex_shader = vertexShader;
         pipelineCreateInfo.fragment_shader = fragmentShader;
@@ -279,9 +345,7 @@ public:
         pipelineCreateInfo.multisample_state = multisampleState;
         pipelineCreateInfo.depth_stencil_state = depthStencilState;
         pipelineCreateInfo.target_info = targetInfo;
-        pipelineCreateInfo.props = 0;
 
-        // Pipeline oluştur
         SDL_GPUGraphicsPipeline* pipeline = SDL_CreateGPUGraphicsPipeline(m_gpuDevice, &pipelineCreateInfo);
 
         if (pipeline) {
@@ -298,26 +362,28 @@ public:
     }
 
     // ============================================================================
-    // TEXTURE MANAGEMENT - Staging Buffer ile VRAM'e yükleme
+    // TEXTURE MANAGEMENT
     // ============================================================================
 
     SDL_GPUTexture* uploadTexture(const std::string& name, const std::string& filepath) {
+        // Eğer aynı isimle zaten yüklenmişse, tekrar yükleme
+        if (m_textures.find(name) != m_textures.end()) {
+            return m_textures[name];
+        }
+
         if (!m_gpuDevice) return nullptr;
 
-        // 1. Resmi CPU'ya yükle
         SDL_Surface* surface = IMG_Load(filepath.c_str());
         if (!surface) {
             SDL_Log("HATA: Texture yuklenemedi: %s", filepath.c_str());
             return nullptr;
         }
 
-        // 2. Formatı GPU dostu (RGBA32) formata çevir
         SDL_Surface* rgbaSurface = SDL_ConvertSurface(surface, SDL_PIXELFORMAT_RGBA32);
-        SDL_DestroySurface(surface); // Eskisini sil
+        SDL_DestroySurface(surface);
         
         if (!rgbaSurface) return nullptr;
 
-        // 3. VRAM Texture oluştur
         SDL_GPUTextureCreateInfo texInfo = {};
         texInfo.type = SDL_GPU_TEXTURETYPE_2D;
         texInfo.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
@@ -330,14 +396,12 @@ public:
         
         SDL_GPUTexture* texture = SDL_CreateGPUTexture(m_gpuDevice, &texInfo);
 
-        // 4. Staging Buffer oluştur
         uint32_t dataSize = rgbaSurface->w * rgbaSurface->h * 4;
         SDL_GPUTransferBufferCreateInfo transferInfo = {};
         transferInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
         transferInfo.size = dataSize;
         SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(m_gpuDevice, &transferInfo);
 
-        // 5. Veriyi Staging Buffer'a kopyala
         void* transferData = SDL_MapGPUTransferBuffer(m_gpuDevice, transferBuffer, false);
         if (transferData) {
             memcpy(transferData, rgbaSurface->pixels, dataSize);
@@ -345,13 +409,11 @@ public:
         }
         SDL_DestroySurface(rgbaSurface);
 
-        // 6. Copy Pass (VRAM'e aktarım)
         SDL_GPUCommandBuffer* uploadCmd = SDL_AcquireGPUCommandBuffer(m_gpuDevice);
         SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(uploadCmd);
 
         SDL_GPUTextureTransferInfo transferLoc = {};
         transferLoc.transfer_buffer = transferBuffer;
-        transferLoc.offset = 0;
 
         SDL_GPUTextureRegion texRegion = {};
         texRegion.texture = texture;
@@ -363,10 +425,7 @@ public:
         SDL_EndGPUCopyPass(copyPass);
         SDL_SubmitGPUCommandBuffer(uploadCmd);
 
-        // KRITIK: GPU'nun texture upload'ı bitirmesini bekle!
         SDL_WaitForGPUIdle(m_gpuDevice);
-
-        // 7. Temizlik
         SDL_ReleaseGPUTransferBuffer(m_gpuDevice, transferBuffer);
 
         m_textures[name] = texture;
@@ -424,9 +483,7 @@ public:
             mat->hasMetallicRoughnessTexture = (mat->metallicRoughnessTexture != nullptr);
         }
 
-        if (m_samplers.empty()) {
-            createSampler(); // Default sampler oluştur
-        }
+        if (m_samplers.empty()) createSampler(); 
         mat->sampler = m_samplers[0];
 
         Material* rawPtr = mat.get();
@@ -445,17 +502,14 @@ public:
 
     bool loadFont(const std::string& name, const std::string& path, float size) {
         TTF_Font* font = TTF_OpenFont(path.c_str(), size);
-        if (!font) {
-            SDL_Log("Font yuklenemedi: %s - Hata: %s", path.c_str(), SDL_GetError());
-            return false;
-        }
+        if (!font) return false;
         m_fonts[name] = font;
         return true;
     }
 
     TTF_Font* getFont(const std::string& name) {
-        if (m_fonts.find(name) == m_fonts.end()) return nullptr;
-        return m_fonts[name];
+        auto it = m_fonts.find(name);
+        return (it != m_fonts.end()) ? it->second : nullptr;
     }
 
     // ============================================================================
@@ -463,59 +517,60 @@ public:
     // ============================================================================
 
     void cleanup() {
-        // Materials - Smart pointer'lar otomatik temizlenir
+        if (!m_gpuDevice) return;
+
         m_materials.clear();
 
-        // Samplers
         for (auto sampler : m_samplers) {
             if (sampler) SDL_ReleaseGPUSampler(m_gpuDevice, sampler);
         }
         m_samplers.clear();
 
-        // Önce pipeline'ları temizle (shader'lara bağımlı)
         for (auto& [name, pipeline] : m_pipelines) {
             SDL_ReleaseGPUGraphicsPipeline(m_gpuDevice, pipeline);
         }
         m_pipelines.clear();
 
-        // Sonra shader'ları temizle
         for (auto shader : m_shaders) {
             if (shader) SDL_ReleaseGPUShader(m_gpuDevice, shader);
         }
         m_shaders.clear();
 
-        // Meshes - Smart pointer'lar otomatik temizlenir, sadece GPU resource'ları serbest bırak
-        for (auto& [name, mesh] : m_meshes) {
-            if (mesh->vertexBuffer) SDL_ReleaseGPUBuffer(m_gpuDevice, mesh->vertexBuffer);
-            if (mesh->indexBuffer) SDL_ReleaseGPUBuffer(m_gpuDevice, mesh->indexBuffer);
-        }
-        m_meshes.clear(); // unique_ptr'lar otomatik delete edilir
+        m_meshes.clear();
 
-        // Textures
+        if (m_megaVertexBuffer) {
+            SDL_ReleaseGPUBuffer(m_gpuDevice, m_megaVertexBuffer);
+            m_megaVertexBuffer = nullptr;
+        }
+        if (m_megaIndexBuffer) {
+            SDL_ReleaseGPUBuffer(m_gpuDevice, m_megaIndexBuffer);
+            m_megaIndexBuffer = nullptr;
+        }
+
         for (auto& [name, tex] : m_textures) {
             SDL_ReleaseGPUTexture(m_gpuDevice, tex);
         }
         m_textures.clear();
 
-        // Fonts
         for (auto& [name, font] : m_fonts) {
             TTF_CloseFont(font);
         }
         m_fonts.clear();
+
+        // Varsayılan dokuları temizle
+        if (m_whiteTexture) {
+            SDL_ReleaseGPUTexture(m_gpuDevice, m_whiteTexture);
+            m_whiteTexture = nullptr;
+        }
+        if (m_blackTexture) {
+            SDL_ReleaseGPUTexture(m_gpuDevice, m_blackTexture);
+            m_blackTexture = nullptr;
+        }
+        if (m_defaultNormalTexture) {
+            SDL_ReleaseGPUTexture(m_gpuDevice, m_defaultNormalTexture);
+            m_defaultNormalTexture = nullptr;
+        }
     }
-
-private:
-    AssetManager() = default;
-    ~AssetManager() = default;
-
-    SDL_GPUDevice* m_gpuDevice = nullptr;
-    std::map<std::string, std::unique_ptr<GPUMesh>> m_meshes; // Modern C++20 - Smart Pointers
-    std::map<std::string, SDL_GPUGraphicsPipeline*> m_pipelines;
-    std::map<std::string, SDL_GPUTexture*> m_textures;
-    std::map<std::string, TTF_Font*> m_fonts;
-    std::vector<SDL_GPUShader*> m_shaders; // Shader cleanup için
-    std::vector<SDL_GPUSampler*> m_samplers; // Sampler cleanup için
-    std::map<std::string, std::unique_ptr<Material>> m_materials; // Material management
 };
 
 } // namespace Astral

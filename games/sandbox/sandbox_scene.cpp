@@ -2,6 +2,8 @@
 #include "core/app.h"
 #include "core/shader_loader.h"
 #include "math/vertex.h"
+#include "systems/render_system.h"
+#include "systems/camera_system.h"
 #include <glm/gtc/matrix_transform.hpp>
 
 SandboxScene::SandboxScene()
@@ -12,6 +14,10 @@ void SandboxScene::init()
 {
     // Aksiyonları kaydet
     registerAction(SDLK_ESCAPE, "QUIT");
+    registerAction(SDLK_W, "UP");
+    registerAction(SDLK_S, "DOWN");
+    registerAction(SDLK_A, "LEFT");
+    registerAction(SDLK_D, "RIGHT");
 
     // AssetManager'a GPU device'ı ver
     Astral::AssetManager& assetMgr = Astral::AssetManager::getInstance();
@@ -28,17 +34,16 @@ void SandboxScene::init()
 
     // Kamera entity'si oluştur
     auto cameraEnt = m_entityManager.addEntity("camera");
+    cameraEnt->add<CTransform>(glm::vec3(0.0f, 2.0f, 8.0f), glm::vec3(0.0f));
+    cameraEnt->add<CInput>();
+    cameraEnt->add<CFreeLook>(30.0f, 0.1f); // Hız 15'ten 30'a çıkarıldı, Hassasiyet: 0.1
     cameraEnt->add<CCamera>(
-        glm::lookAt(
-            glm::vec3(0.0f, 0.0f, 3.0f),  // Kamera pozisyonu
-            glm::vec3(0.0f, 0.0f, 0.0f),  // Bakış noktası
-            glm::vec3(0.0f, 1.0f, 0.0f)   // Yukarı vektör
-        ),
+        glm::mat4(1.0f),
         glm::perspective(
             glm::radians(60.0f),  // FOV
             1280.0f / 720.0f,     // Aspect ratio
             0.1f,                 // Near plane
-            100.0f                // Far plane
+            500.0f                // Far plane (GLTF modelleri büyük olabilir)
         )
     );
     cameraEnt->cCamera.isActive = true;
@@ -51,24 +56,13 @@ void SandboxScene::init()
         glm::normalize(glm::vec3(-1.0f, -1.0f, -0.5f)) // Işık yönü
     );
 
-    // Küp entity'si oluştur (Parent)
-    auto cubeEnt = m_entityManager.addEntity("cube");
-    cubeEnt->add<CTransform>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f));
-    cubeEnt->cTransform.scale = glm::vec3(0.5f);
-    cubeEnt->cTransform.rotation = glm::vec3(0.0f);
-    cubeEnt->add<CMesh>("cube", "box_material"); // Material kullanıyoruz artık!
-
-    // İkinci Küp entity'si oluştur (Child - Uydu/Ay)
-    auto moonEnt = m_entityManager.addEntity("moon");
-    moonEnt->add<CTransform>(glm::vec3(2.0f, 0.0f, 0.0f), glm::vec3(0.0f)); // Parent'a göre 2 birim sağda
-    moonEnt->cTransform.scale = glm::vec3(0.3f); // Parent'a göre %30 boyutta
-    moonEnt->add<CMesh>("cube", "box_material");
-
-    // Hiyerarşi bağlantısını kur (Scene Graph)
-    moonEnt->cTransform.parent = cubeEnt;
-    cubeEnt->cTransform.children.push_back(moonEnt);
-
     // ÖNEMLİ: Entity'leri aktif listeye taşı!
+    m_entityManager.update();
+    
+    // GLTF Modelleri yükle (update'ten SONRA!)
+    loadGLTFModels();
+    
+    // GLTF entity'lerini de aktif listeye taşı
     m_entityManager.update();
     
     SDL_Log("SandboxScene initialized: %zu entities ready", m_entityManager.getEntities().size());
@@ -159,17 +153,17 @@ void SandboxScene::loadShaders()
         m_app->getWindow()
     );
 
-    // Pipeline oluştur
+    // PBR Pipeline oluştur
     AssetManager::getInstance().createPipeline(
-        "basic3d",
+        "pbr_pipeline",
         vertShader,
         fragShader,
         swapchainFormat,
-        true, // depth test enabled (3D Küp için)
+        true, // depth test enabled (3D için)
         SDL_GPU_CULLMODE_BACK // backface culling enabled
     );
 
-    SDL_Log("Pipeline 'basic3d' oluşturuldu!");
+    SDL_Log("Pipeline 'pbr_pipeline' oluşturuldu!");
 }
 
 void SandboxScene::createMaterials()
@@ -181,20 +175,98 @@ void SandboxScene::createMaterials()
     assetMgr.uploadTexture("box_tex", "assets/textures/box.png");
 
     // PBR Material yarat (Albedo texture var, Normal/MR texture yok. Metallic: 0.1, Roughness: 0.8 ahşap kutu için uygun)
-    assetMgr.createMaterial("box_material", "basic3d", "box_tex", "", "", glm::vec4(1.0f), 0.1f, 0.8f);
+    assetMgr.createMaterial("box_material", "pbr_pipeline", "box_tex", "", "", glm::vec4(1.0f), 0.1f, 0.8f);
 
     SDL_Log("PBR Material 'box_material' oluşturuldu!");
 }
 
+void SandboxScene::loadGLTFModels()
+{
+    using namespace Astral;
+    
+    // Pipeline'ın hazır olduğundan emin ol
+    if (!AssetManager::getInstance().getPipeline("pbr_pipeline")) {
+        SDL_Log("UYARI: PBR Pipeline henüz hazır değil, GLTF yükleme atlanıyor");
+        return;
+    }
+
+    // Default material oluştur (GLTF loader bunu kullanacak)
+    AssetManager::getInstance().createMaterial("default", "pbr_pipeline", "", "", "", 
+        glm::vec4(0.8f, 0.8f, 0.8f, 1.0f), 0.0f, 0.5f);
+
+    // Hover Bike modelini yükle
+    SDL_Log("=== GLTF Model Yükleniyor ===");
+    auto bikeRoot = GLTFLoader::loadGLTF(
+        "assets/test_models/hover_bike_-_the_rocket/scene.gltf", 
+        m_entityManager,
+        "bike_mat_"  // Material prefix
+    );
+    
+    if (bikeRoot) {
+        // Modeli sahneye yerleştir
+        auto& transform = bikeRoot->get<CTransform>();
+        transform.pos = glm::vec3(0.0f, 0.0f, 0.0f);   // Merkez
+        transform.scale = glm::vec3(1.0f);              // Normal boyut
+        transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
+        
+        SDL_Log("Hover Bike modeli başarıyla yüklendi!");
+        SDL_Log("Root entity tag: %s", bikeRoot->tag().c_str());
+        
+        // Yeni eklenen entity'leri toAdd listesinden ana listeye taşı ki sayabilelim
+        m_entityManager.update();
+
+        // Debug: Kaç tane mesh entity'si var?
+        int meshCount = 0;
+        for (auto& e : m_entityManager.getEntities()) {
+            if (e->has<CMesh>()) {
+                meshCount++;
+                SDL_Log("  Mesh Entity: %s -> Material: %s", 
+                    e->tag().c_str(), 
+                    e->get<CMesh>().materialName.c_str());
+            }
+        }
+        SDL_Log("Toplam Mesh Entity: %d", meshCount);
+    } else {
+        SDL_Log("HATA: Hover Bike modeli yüklenemedi!");
+    }
+    
+    SDL_Log("=== GLTF Yükleme Tamamlandı ===");
+}
+
 void SandboxScene::update(float deltaTime)
 {
-    // Üçgeni döndür
-    m_rotation += 1.0f * deltaTime;
-    
+    // Kamera Sistemini Güncelle
+    Astral::CameraSystem::update(m_entityManager, deltaTime);
+}
+
+void SandboxScene::onMouseMove(float x, float y, float relX, float relY)
+{
     for (auto& entity : m_entityManager.getEntities()) {
-        if (entity->tag() == "cube" && entity->has<CTransform>()) {
-            entity->get<CTransform>().rotation.x += 0.5f * deltaTime;
-            entity->get<CTransform>().rotation.y += 1.0f * deltaTime;
+        if (entity->tag() == "camera" && entity->has<CFreeLook>()) {
+            auto& look = entity->get<CFreeLook>();
+            
+            if (look.isRightMouseDown) {
+                look.yaw += relX * look.sensitivity;
+                look.pitch -= relY * look.sensitivity;
+
+                // Pitch limitleri (Unreal/Unity tarzı)
+                if (look.pitch > 89.0f)  look.pitch = 89.0f;
+                if (look.pitch < -89.0f) look.pitch = -89.0f;
+            }
+        }
+    }
+}
+
+void SandboxScene::onMouseButton(int button, bool pressed, float x, float y)
+{
+    if (button == SDL_BUTTON_RIGHT) {
+        for (auto& entity : m_entityManager.getEntities()) {
+            if (entity->tag() == "camera" && entity->has<CFreeLook>()) {
+                entity->get<CFreeLook>().isRightMouseDown = pressed;
+                
+                // Mouse'u kilitle/serbest bırak (Unreal Editor tarzı)
+                SDL_SetWindowRelativeMouseMode(m_app->getWindow(), pressed);
+            }
         }
     }
 }
@@ -212,5 +284,16 @@ void SandboxScene::sDoAction(const std::string& actionName, bool started)
 {
     if (actionName == "QUIT" && started) {
         m_running = false;
+    }
+
+    // Kamera kontrolleri
+    for (auto& entity : m_entityManager.getEntities()) {
+        if (entity->tag() == "camera" && entity->has<CInput>()) {
+            auto& input = entity->get<CInput>();
+            if (actionName == "UP")    input.up = started;
+            if (actionName == "DOWN")  input.down = started;
+            if (actionName == "LEFT")  input.left = started;
+            if (actionName == "RIGHT") input.right = started;
+        }
     }
 }

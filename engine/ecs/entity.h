@@ -15,7 +15,8 @@ using ComponentTuple = std::tuple<
 	CSprite,
 	CMesh,
 	CCamera,
-    CLight
+    CLight,
+    CFreeLook
 >;
 
 // Oyun içerisindeki tüm dinamik veya statik objelerin (Karakter, Silah, Kamera, Işık vb.) soyut temelini oluşturur.
@@ -78,6 +79,7 @@ public:
 	CMesh& cMesh = get<CMesh>();
 	CCamera& cCamera = get<CCamera>();
     CLight& cLight = get<CLight>();
+    CFreeLook& cFreeLook = get<CFreeLook>();
 
 private:
 	// Constructor private tutularak varlıkların rastgele değil, sadece yönetici üzerinden oluşturulması garanti edilir.

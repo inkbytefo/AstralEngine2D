@@ -20,6 +20,10 @@ public:
 	// Aksiyonu işle (Örn: "UP", true)
 	virtual void sDoAction(const std::string& actionName, bool started) = 0;
 
+    // Mouse olayları (Opsiyonel override)
+    virtual void onMouseMove(float x, float y, float relX, float relY) {}
+    virtual void onMouseButton(int button, bool pressed, float x, float y) {}
+
 	// Tuş -> Aksiyon eşleşmesini kaydet
 	void registerAction(SDL_Keycode key, const std::string& actionName) {
 		m_actionMap[key] = actionName;

@@ -120,7 +120,8 @@ public:
         AssetManager& assetMgr = AssetManager::getInstance();
         SDL_GPUGraphicsPipeline* lastPipeline = nullptr;
         std::string lastMaterialName = "";
-        std::string lastMeshName = "";
+        SDL_GPUBuffer* lastVertexBuffer = nullptr;
+        SDL_GPUBuffer* lastIndexBuffer = nullptr;
 
         s_drawCalls = 0;
 
@@ -144,13 +145,12 @@ public:
             // B. Material Binding (Texture & Uniforms - Orta)
             if (meshComp.materialName != lastMaterialName) {
                 // PBR Texture Binding (Set 2)
-                // Vulkan, shader'da tanımlı olan tüm binding'lerin dolu olmasını bekler.
-                // Eğer bir texture yoksa, çökmemesi için geçici olarak albedo'yu bağlıyoruz 
-                // (Shader içindeki `useXMap` değişkenleri okumayı engelleyecektir).
-                
-                SDL_GPUTexture* tex0 = material->hasAlbedoTexture ? material->albedoTexture : material->albedoTexture; // (Aslında default beyaz bir texture olmalı ama şimdilik elimizde bu var)
-                SDL_GPUTexture* tex1 = material->hasNormalTexture ? material->normalTexture : tex0;
-                SDL_GPUTexture* tex2 = material->hasMetallicRoughnessTexture ? material->metallicRoughnessTexture : tex0;
+                SDL_GPUTexture* whiteTex = assetMgr.getWhiteTexture();
+                SDL_GPUTexture* normalTex = assetMgr.getNormalTexture();
+
+                SDL_GPUTexture* tex0 = material->hasAlbedoTexture ? material->albedoTexture : whiteTex;
+                SDL_GPUTexture* tex1 = material->hasNormalTexture ? material->normalTexture : normalTex;
+                SDL_GPUTexture* tex2 = material->hasMetallicRoughnessTexture ? material->metallicRoughnessTexture : whiteTex;
 
                 SDL_GPUTextureSamplerBinding bindings[3] = {
                     { tex0, material->sampler },
@@ -206,25 +206,32 @@ public:
                 lastMaterialName = meshComp.materialName;
             }
 
-            // C. Mesh Binding (Buffers - Ucuz)
-            if (meshComp.meshName != lastMeshName) {
+            // C. Mega-Buffer Binding (Sadece buffer değişirse bağla)
+            // Mega-buffer mimarisinde bu if bloğuna genelde sadece sahnede 1 kere girilir!
+            if (mesh->vertexBuffer != lastVertexBuffer) {
                 SDL_GPUBufferBinding vBinding = { mesh->vertexBuffer, 0 };
                 SDL_BindGPUVertexBuffers(s_currentRenderPass, 0, &vBinding, 1);
-
-                SDL_GPUBufferBinding iBinding = { mesh->indexBuffer, 0 };
-                SDL_BindGPUIndexBuffer(s_currentRenderPass, &iBinding, SDL_GPU_INDEXELEMENTSIZE_32BIT);
-                lastMeshName = meshComp.meshName;
+                lastVertexBuffer = mesh->vertexBuffer;
             }
 
-            // --- PER-OBJECT DATA (Push Constants) ---
+            if (mesh->indexBuffer != lastIndexBuffer) {
+                SDL_GPUBufferBinding iBinding = { mesh->indexBuffer, 0 };
+                SDL_BindGPUIndexBuffer(s_currentRenderPass, &iBinding, SDL_GPU_INDEXELEMENTSIZE_32BIT);
+                lastIndexBuffer = mesh->indexBuffer;
+            }
+
+            // --- PER-OBJECT DATA (Push Constants / UBO) ---
             auto& transform = entity->get<CTransform>();
             
             // Scene Graph sayesinde global matris önceden hesaplandı
             UniformData uniforms = { transform.globalMatrix, viewMatrix, projMatrix };
             SDL_PushGPUVertexUniformData(commandBuffer, 0, &uniforms, sizeof(UniformData));
 
-            // --- DRAW ---
-            SDL_DrawGPUIndexedPrimitives(s_currentRenderPass, mesh->indexCount, 1, 0, 0, 0);
+            // --- DRAW (Mega-Buffer Offset Çizimi) ---
+            uint32_t firstIndex = mesh->indexOffset / sizeof(uint32_t);
+            int32_t vertexOffset = mesh->vertexOffset / sizeof(Vertex);
+            
+            SDL_DrawGPUIndexedPrimitives(s_currentRenderPass, mesh->indexCount, 1, firstIndex, vertexOffset, 0);
             s_drawCalls++;
         }
     }
