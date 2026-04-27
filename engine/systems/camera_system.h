@@ -21,15 +21,16 @@ public:
 
             if (!camera.isActive) continue;
 
-            // 1. ROTASYON HESAPLAMA (Bakış yönü vektörü)
+            // 1. ROTASYON HESAPLAMA (Z-Up Standartı)
+            // Yaw: Z ekseni etrafında dönme, Pitch: Y ekseni etrafında (yukarı/aşağı) bakma
             glm::vec3 front;
-            front.x = cos(glm::radians(look.yaw)) * cos(glm::radians(look.pitch));
-            front.y = sin(glm::radians(look.pitch));
-            front.z = sin(glm::radians(look.yaw)) * cos(glm::radians(look.pitch));
+            front.x = cos(glm::radians(look.pitch)) * cos(glm::radians(look.yaw));
+            front.y = cos(glm::radians(look.pitch)) * sin(glm::radians(look.yaw));
+            front.z = sin(glm::radians(look.pitch));
             front = glm::normalize(front);
 
-            glm::vec3 worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
-            glm::vec3 right = glm::normalize(glm::cross(front, worldUp));
+            glm::vec3 worldUp = glm::vec3(0.0f, 0.0f, 1.0f);
+            glm::vec3 right = glm::normalize(glm::cross(worldUp, front)); // Sağ vektör hesabı düzeltildi
             glm::vec3 up = glm::normalize(glm::cross(right, front));
 
             // 2. HAREKET HESAPLAMA (WASD)

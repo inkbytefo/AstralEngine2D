@@ -34,26 +34,30 @@ void SandboxScene::init()
 
     // Kamera entity'si oluştur
     auto cameraEnt = m_entityManager.addEntity("camera");
-    cameraEnt->add<CTransform>(glm::vec3(0.0f, 2.0f, 8.0f), glm::vec3(0.0f));
+    cameraEnt->add<CTransform>(glm::vec3(10.0f, 0.0f, 2.0f), glm::vec3(0.0f)); // X+ ileride, Z+ yukarıda
     cameraEnt->add<CInput>();
-    cameraEnt->add<CFreeLook>(30.0f, 0.1f); // Hız 15'ten 30'a çıkarıldı, Hassasiyet: 0.1
+    cameraEnt->add<CFreeLook>(60.0f, 0.1f); // Hız 60'a çıkarıldı (2x)
+    auto& look = cameraEnt->get<CFreeLook>();
+    look.yaw = 180.0f; // Merkeze bakması için (X- yönüne)
+    look.pitch = -10.0f; 
+
     cameraEnt->add<CCamera>(
         glm::mat4(1.0f),
         glm::perspective(
             glm::radians(60.0f),  // FOV
             1280.0f / 720.0f,     // Aspect ratio
             0.1f,                 // Near plane
-            500.0f                // Far plane (GLTF modelleri büyük olabilir)
+            1000.0f               // Far plane
         )
     );
     cameraEnt->cCamera.isActive = true;
 
-    // Işık (Güneş - Directional Light) entity'si oluştur
+    // Işık (Güneş) - Z-Up'a göre ayarlandı
     auto sunEnt = m_entityManager.addEntity("sun");
     sunEnt->add<CLight>(
-        glm::vec3(1.0f, 0.95f, 0.8f), // Açık sarımsı güneş ışığı rengi
-        3.0f,                         // Işık şiddeti (Intensity)
-        glm::normalize(glm::vec3(-1.0f, -1.0f, -0.5f)) // Işık yönü
+        glm::vec3(1.0f, 0.95f, 0.8f), 
+        3.0f,                         
+        glm::normalize(glm::vec3(-1.0f, -0.5f, -1.0f)) // Z ekseni aşağı doğru (yere doğru)
     );
 
     // ÖNEMLİ: Entity'leri aktif listeye taşı!
@@ -203,11 +207,10 @@ void SandboxScene::loadGLTFModels()
     );
     
     if (bikeRoot) {
-        // Modeli sahneye yerleştir
+        // Modeli sahneye yerleştir (Eksen dönüşümü artık loader içinde yapılıyor)
         auto& transform = bikeRoot->get<CTransform>();
-        transform.pos = glm::vec3(0.0f, 0.0f, 0.0f);   // Merkez
-        transform.scale = glm::vec3(1.0f);              // Normal boyut
-        transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
+        transform.pos = glm::vec3(0.0f, 0.0f, 0.0f);   
+        transform.scale = glm::vec3(1.0f);              
         
         SDL_Log("Hover Bike modeli başarıyla yüklendi!");
         SDL_Log("Root entity tag: %s", bikeRoot->tag().c_str());
@@ -247,7 +250,7 @@ void SandboxScene::onMouseMove(float x, float y, float relX, float relY)
             
             if (look.isRightMouseDown) {
                 look.yaw += relX * look.sensitivity;
-                look.pitch -= relY * look.sensitivity;
+                look.pitch += relY * look.sensitivity; // Yukarı/Aşağı tersliği düzeltildi
 
                 // Pitch limitleri (Unreal/Unity tarzı)
                 if (look.pitch > 89.0f)  look.pitch = 89.0f;

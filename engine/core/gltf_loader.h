@@ -208,19 +208,19 @@ private:
         size_t vertexCount = posAccessor->count;
         vertices.resize(vertexCount);
 
-        // Position
+        // Position (X, Y, Z) -> (X, -Z, Y) Dönüşümü
         for (size_t i = 0; i < vertexCount; ++i) {
             float pos[3];
             cgltf_accessor_read_float(posAccessor, i, pos, 3);
-            vertices[i].pos = glm::vec3(pos[0], pos[1], pos[2]);
+            vertices[i].pos = glm::vec3(pos[0], -pos[2], pos[1]);
         }
 
-        // Normal
+        // Normal (X, Y, Z) -> (X, -Z, Y) Dönüşümü
         if (normalAccessor) {
             for (size_t i = 0; i < vertexCount; ++i) {
                 float norm[3];
                 cgltf_accessor_read_float(normalAccessor, i, norm, 3);
-                vertices[i].normal = glm::vec3(norm[0], norm[1], norm[2]);
+                vertices[i].normal = glm::vec3(norm[0], -norm[2], norm[1]);
             }
         } else {
             // Default normal
@@ -243,12 +243,12 @@ private:
             }
         }
 
-        // Tangent
+        // Tangent (X, Y, Z) -> (X, -Z, Y) Dönüşümü
         if (tangentAccessor) {
             for (size_t i = 0; i < vertexCount; ++i) {
                 float tangent[4];
                 cgltf_accessor_read_float(tangentAccessor, i, tangent, 4);
-                vertices[i].tangent = glm::vec4(tangent[0], tangent[1], tangent[2], tangent[3]);
+                vertices[i].tangent = glm::vec4(tangent[0], -tangent[2], tangent[1], tangent[3]);
             }
         } else {
             // Default tangent
@@ -294,10 +294,16 @@ private:
             auto& transform = entity->add<CTransform>();
             
             if (node->has_matrix) {
-                // Matrix doğrudan verilmiş
+                // Matrix (Y-Up -> Z-Up dönüşümü)
                 glm::mat4 mat;
                 memcpy(glm::value_ptr(mat), node->matrix, sizeof(float) * 16);
                 
+                // Koordinat sistemi dönüşüm matrisi
+                glm::mat4 conv = glm::mat4(1.0f);
+                conv[1][1] = 0; conv[1][2] = 1;
+                conv[2][1] = -1; conv[2][2] = 0;
+                mat = conv * mat;
+
                 // Matrix'ten TRS çıkar
                 glm::vec3 scale, translation, skew;
                 glm::vec4 perspective;
@@ -308,16 +314,19 @@ private:
                 transform.scale = scale;
                 transform.rotation = glm::eulerAngles(rotation);
             } else {
-                // TRS ayrı ayrı verilmiş
+                // TRS ayrı ayrı (Y-Up -> Z-Up dönüşümü)
                 if (node->has_translation) {
-                    transform.pos = glm::vec3(node->translation[0], node->translation[1], node->translation[2]);
+                    transform.pos = glm::vec3(node->translation[0], -node->translation[2], node->translation[1]);
                 }
                 if (node->has_rotation) {
+                    // Quaternion dönüşümü biraz daha karmaşık ama basitleştirilmiş swap
                     glm::quat q(node->rotation[3], node->rotation[0], node->rotation[1], node->rotation[2]);
-                    transform.rotation = glm::eulerAngles(q);
+                    // Y-Up -> Z-Up için quat rotasyonu
+                    glm::quat rotFix = glm::angleAxis(glm::radians(-90.0f), glm::vec3(1, 0, 0));
+                    transform.rotation = glm::eulerAngles(rotFix * q);
                 }
                 if (node->has_scale) {
-                    transform.scale = glm::vec3(node->scale[0], node->scale[1], node->scale[2]);
+                    transform.scale = glm::vec3(node->scale[0], node->scale[2], node->scale[1]);
                 }
             }
 
