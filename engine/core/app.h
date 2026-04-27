@@ -20,9 +20,12 @@ public:
 private:
 	SDL_Window* m_window{ nullptr };
 	SDL_GPUDevice* m_gpuDevice{ nullptr };
+	SDL_GPUTexture* m_depthTexture{ nullptr };
 	bool			m_running{ false };
 	std::unique_ptr<Scene> m_scene{ nullptr };
 	std::unique_ptr<Scene> m_nextScene{ nullptr };
 	Uint64 m_lastTime{ 0 }; // Delta time hesaplaması için önceki kare zamanı.
 	float m_deltaTime{ 0.0f }; // Kareler arası geçen süre (donanımdan bağımsız hız için).
+
+	void updateDepthTexture(int width, int height); // Depth buffer yönetimi
 };

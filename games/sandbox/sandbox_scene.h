@@ -14,7 +14,7 @@ public:
     bool isRunning() const override { return m_running; }
 
 private:
-    void createTriangleMesh();
+    void createCubeMesh();
     void loadShaders();
     
     bool m_running = true;

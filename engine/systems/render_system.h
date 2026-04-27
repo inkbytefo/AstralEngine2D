@@ -98,7 +98,6 @@ public:
                     viewMatrix = cam.view;
                     projMatrix = cam.projection;
                     cameraFound = true;
-                    SDL_Log("RenderSystem: Kamera bulundu! (Entity: %s)", entity->tag().c_str());
                     break;
                 }
             }

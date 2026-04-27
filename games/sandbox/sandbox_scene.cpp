@@ -17,8 +17,8 @@ void SandboxScene::init()
     Astral::AssetManager& assetMgr = Astral::AssetManager::getInstance();
     assetMgr.setGPUDevice(m_app->getGPUDevice());
 
-    // Üçgen mesh'i oluştur
-    createTriangleMesh();
+    // Cube mesh'i oluştur
+    createCubeMesh();
 
     // Shader'ları yükle ve pipeline oluştur
     loadShaders();
@@ -40,13 +40,12 @@ void SandboxScene::init()
     );
     cameraEnt->cCamera.isActive = true;
 
-    // Üçgen entity'si oluştur
-    auto triangleEnt = m_entityManager.addEntity("triangle");
-    triangleEnt->add<CTransform>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f));
-    triangleEnt->cTransform.scale = glm::vec3(1.0f);
-    triangleEnt->cTransform.rotation = glm::vec3(0.0f);
-    
-    triangleEnt->add<CMesh>("triangle", "basic3d");
+    // Küp entity'si oluştur
+    auto cubeEnt = m_entityManager.addEntity("cube");
+    cubeEnt->add<CTransform>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f));
+    cubeEnt->cTransform.scale = glm::vec3(0.5f);
+    cubeEnt->cTransform.rotation = glm::vec3(0.0f);
+    cubeEnt->add<CMesh>("cube", "basic3d");
 
     // ÖNEMLİ: Entity'leri aktif listeye taşı!
     m_entityManager.update();
@@ -54,23 +53,42 @@ void SandboxScene::init()
     SDL_Log("SandboxScene initialized: %zu entities ready", m_entityManager.getEntities().size());
 }
 
-void SandboxScene::createTriangleMesh()
+void SandboxScene::createCubeMesh()
 {
     using namespace Astral;
 
-    // Renkli üçgen vertex'leri (32-byte optimal layout)
+    // 3D Küp Vertex'leri (Pozisyon, Renk, UV)
     std::vector<Vertex> vertices = {
-        // Position                  Color (RGB)              UV
-        Vertex(glm::vec3( 0.0f,  0.5f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec2(0.5f, 0.0f)), // Üst (Kırmızı)
-        Vertex(glm::vec3(-0.5f, -0.5f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::vec2(0.0f, 1.0f)), // Sol alt (Yeşil)
-        Vertex(glm::vec3( 0.5f, -0.5f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec2(1.0f, 1.0f))  // Sağ alt (Mavi)
+        // Ön Yüz
+        Vertex({-1, -1,  1}, {1, 0, 0}, {0, 1}), Vertex({ 1, -1,  1}, {0, 1, 0}, {1, 1}),
+        Vertex({ 1,  1,  1}, {0, 0, 1}, {1, 0}), Vertex({-1,  1,  1}, {1, 1, 0}, {0, 0}),
+        // Arka Yüz
+        Vertex({-1, -1, -1}, {1, 0, 1}, {1, 1}), Vertex({-1,  1, -1}, {0, 1, 1}, {1, 0}),
+        Vertex({ 1,  1, -1}, {1, 1, 1}, {0, 0}), Vertex({ 1, -1, -1}, {0, 0, 0}, {0, 1}),
+        // Üst Yüz
+        Vertex({-1,  1, -1}, {1, 0.5, 0}, {0, 0}), Vertex({-1,  1,  1}, {0.5, 1, 0}, {0, 1}),
+        Vertex({ 1,  1,  1}, {0, 0.5, 1}, {1, 1}), Vertex({ 1,  1, -1}, {1, 0, 0.5}, {1, 0}),
+        // Alt Yüz
+        Vertex({-1, -1, -1}, {0, 1, 0.5}, {1, 0}), Vertex({ 1, -1, -1}, {0.5, 0, 1}, {0, 0}),
+        Vertex({ 1, -1,  1}, {1, 0.5, 1}, {0, 1}), Vertex({-1, -1,  1}, {0.5, 1, 0.5}, {1, 1}),
+        // Sağ Yüz
+        Vertex({ 1, -1, -1}, {1, 0, 0}, {1, 1}), Vertex({ 1,  1, -1}, {0, 1, 0}, {1, 0}),
+        Vertex({ 1,  1,  1}, {0, 0, 1}, {0, 0}), Vertex({ 1, -1,  1}, {1, 1, 0}, {0, 1}),
+        // Sol Yüz
+        Vertex({-1, -1, -1}, {1, 0, 1}, {0, 1}), Vertex({-1, -1,  1}, {0, 1, 1}, {1, 1}),
+        Vertex({-1,  1,  1}, {1, 1, 1}, {1, 0}), Vertex({-1,  1, -1}, {0, 0, 0}, {0, 0})
     };
 
-    // Index buffer (saat yönünün tersine - counter-clockwise)
-    std::vector<uint32_t> indices = { 0, 1, 2 };
+    std::vector<uint32_t> indices = {
+        0,  1,  2,  2,  3,  0,  // Ön
+        4,  5,  6,  6,  7,  4,  // Arka
+        8,  9, 10, 10, 11,  8,  // Üst
+        12, 13, 14, 14, 15, 12, // Alt
+        16, 17, 18, 18, 19, 16, // Sağ
+        20, 21, 22, 22, 23, 20  // Sol
+    };
 
-    // Mesh'i GPU'ya yükle
-    AssetManager::getInstance().uploadMesh("triangle", vertices, indices);
+    AssetManager::getInstance().uploadMesh("cube", vertices, indices);
 }
 
 void SandboxScene::loadShaders()
@@ -108,6 +126,10 @@ void SandboxScene::loadShaders()
         return;
     }
 
+    // Shader'ları AssetManager'a ekle (cleanup için)
+    AssetManager::getInstance().addShader(vertShader);
+    AssetManager::getInstance().addShader(fragShader);
+
     // Swapchain formatını al
     SDL_GPUTextureFormat swapchainFormat = SDL_GetGPUSwapchainTextureFormat(
         device,
@@ -120,8 +142,8 @@ void SandboxScene::loadShaders()
         vertShader,
         fragShader,
         swapchainFormat,
-        false, // depth test disabled (2D üçgen için)
-        SDL_GPU_CULLMODE_NONE // culling disabled
+        true, // depth test enabled (3D Küp için)
+        SDL_GPU_CULLMODE_BACK // backface culling enabled
     );
 
     SDL_Log("Pipeline 'basic3d' oluşturuldu!");
@@ -133,8 +155,9 @@ void SandboxScene::update(float deltaTime)
     m_rotation += 1.0f * deltaTime;
     
     for (auto& entity : m_entityManager.getEntities()) {
-        if (entity->tag() == "triangle" && entity->has<CTransform>()) {
-            entity->get<CTransform>().rotation.z = m_rotation;
+        if (entity->tag() == "cube" && entity->has<CTransform>()) {
+            entity->get<CTransform>().rotation.x += 0.5f * deltaTime;
+            entity->get<CTransform>().rotation.y += 1.0f * deltaTime;
         }
     }
 }

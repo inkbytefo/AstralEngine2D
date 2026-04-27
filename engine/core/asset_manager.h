@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include "../math/vertex.h"
+#include "shader_loader.h"
 
 namespace Astral {
 
@@ -147,6 +148,24 @@ public:
         return mesh;
     }
 
+    // ============================================================================
+    // SHADER MANAGEMENT
+    // ============================================================================
+    
+    SDL_GPUShader* loadShader(const std::string& path, SDL_GPUShaderStage stage) {
+        if (!m_gpuDevice) return nullptr;
+        
+        SDL_GPUShader* shader = ShaderLoader::loadShaderFromFile(m_gpuDevice, path.c_str(), stage);
+        if (shader) {
+            m_shaders.push_back(shader);
+        }
+        return shader;
+    }
+
+    void addShader(SDL_GPUShader* shader) {
+        if (shader) m_shaders.push_back(shader);
+    }
+
     GPUMesh* getMesh(const std::string& name) {
         auto it = m_meshes.find(name);
         return (it != m_meshes.end()) ? it->second : nullptr;
@@ -166,19 +185,11 @@ public:
     {
         if (!m_gpuDevice) return nullptr;
 
-        // Shader'ları sakla (cleanup için)
-        m_shaders.push_back(vertexShader);
-        m_shaders.push_back(fragmentShader);
-
         // Vertex Input State - Vertex layout'u tanımla
         SDL_GPUVertexAttribute attributes[3];
-        VertexLayout::GetAttributes(attributes);
+        Vertex::getAttributeDescriptions(attributes);
 
-        SDL_GPUVertexBufferDescription vertexBufferDesc = {};
-        vertexBufferDesc.slot = VertexLayout::BINDING_INDEX;
-        vertexBufferDesc.pitch = VertexLayout::STRIDE;
-        vertexBufferDesc.input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX;
-        vertexBufferDesc.instance_step_rate = 0;
+        SDL_GPUVertexBufferDescription vertexBufferDesc = Vertex::getBindingDescription();
 
         // Vertex Input State
         SDL_GPUVertexInputState vertexInputState = {};
@@ -201,14 +212,14 @@ public:
         // Multisample State
         SDL_GPUMultisampleState multisampleState = {};
         multisampleState.sample_count = SDL_GPU_SAMPLECOUNT_1;
-        multisampleState.sample_mask = 0; // SDL_GPU assertion: sample_mask must be 0!
+        multisampleState.sample_mask = 0;
         multisampleState.enable_mask = false;
 
         // Depth Stencil State
         SDL_GPUDepthStencilState depthStencilState = {};
         depthStencilState.compare_op = SDL_GPU_COMPAREOP_LESS_OR_EQUAL;
-        depthStencilState.compare_mask = 0;
-        depthStencilState.write_mask = 0;
+        depthStencilState.compare_mask = 0xFF;
+        depthStencilState.write_mask = 0xFF;
         depthStencilState.enable_depth_test = enableDepth;
         depthStencilState.enable_depth_write = enableDepth;
         depthStencilState.enable_stencil_test = false;
@@ -303,17 +314,17 @@ public:
     // ============================================================================
 
     void cleanup() {
-        // Shaders (önce shader'ları temizle)
-        for (auto shader : m_shaders) {
-            if (shader) SDL_ReleaseGPUShader(m_gpuDevice, shader);
-        }
-        m_shaders.clear();
-
-        // Pipelines
+        // Önce pipeline'ları temizle (shader'lara bağımlı)
         for (auto& [name, pipeline] : m_pipelines) {
             SDL_ReleaseGPUGraphicsPipeline(m_gpuDevice, pipeline);
         }
         m_pipelines.clear();
+
+        // Sonra shader'ları temizle
+        for (auto shader : m_shaders) {
+            if (shader) SDL_ReleaseGPUShader(m_gpuDevice, shader);
+        }
+        m_shaders.clear();
 
         // Meshes
         for (auto& [name, mesh] : m_meshes) {
