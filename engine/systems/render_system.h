@@ -143,24 +143,66 @@ public:
 
             // B. Material Binding (Texture & Uniforms - Orta)
             if (meshComp.materialName != lastMaterialName) {
-                // Texture Bind (Set 2)
-                if (material->hasAlbedoTexture) {
-                    SDL_GPUTextureSamplerBinding texBinding = { material->albedoTexture, material->sampler };
-                    SDL_BindGPUFragmentSamplers(s_currentRenderPass, 0, &texBinding, 1);
+                // PBR Texture Binding (Set 2)
+                // Vulkan, shader'da tanımlı olan tüm binding'lerin dolu olmasını bekler.
+                // Eğer bir texture yoksa, çökmemesi için geçici olarak albedo'yu bağlıyoruz 
+                // (Shader içindeki `useXMap` değişkenleri okumayı engelleyecektir).
+                
+                SDL_GPUTexture* tex0 = material->hasAlbedoTexture ? material->albedoTexture : material->albedoTexture; // (Aslında default beyaz bir texture olmalı ama şimdilik elimizde bu var)
+                SDL_GPUTexture* tex1 = material->hasNormalTexture ? material->normalTexture : tex0;
+                SDL_GPUTexture* tex2 = material->hasMetallicRoughnessTexture ? material->metallicRoughnessTexture : tex0;
+
+                SDL_GPUTextureSamplerBinding bindings[3] = {
+                    { tex0, material->sampler },
+                    { tex1, material->sampler },
+                    { tex2, material->sampler }
+                };
+                SDL_BindGPUFragmentSamplers(s_currentRenderPass, 0, bindings, 3);
+
+                // Işık verisini bul
+                glm::vec3 lightDir(0.0f, -1.0f, 0.0f);
+                float lightInt = 1.0f;
+                glm::vec3 lightCol(1.0f, 1.0f, 1.0f);
+                for (auto& e : entityManager.getEntities()) {
+                    if (e->has<CLight>()) {
+                        lightDir = e->get<CLight>().direction;
+                        lightInt = e->get<CLight>().intensity;
+                        lightCol = e->get<CLight>().color;
+                        break;
+                    }
                 }
 
-                // Fragment Uniform (Set 3)
-                struct FragmentUniform {
-                    glm::vec4 baseColor;
-                    int hasTexture;
-                    int _padding[3];
-                } fragData = { material->baseColor, material->hasAlbedoTexture ? 1 : 0 };
-                
-                // Debug log (sadece değişimde)
-                // SDL_Log("RenderSystem: Material bind ediliyor: %s (Texture: %d)", 
-                //         meshComp.materialName.c_str(), fragData.hasTexture);
+                // Kamera pozisyonunu bul
+                glm::vec3 camPos(0.0f);
+                for (auto& e : entityManager.getEntities()) {
+                    if (e->has<CCamera>() && e->get<CCamera>().isActive && e->has<CTransform>()) {
+                        camPos = glm::vec3(e->get<CTransform>().globalMatrix[3]); // Translation sütunu
+                        break;
+                    }
+                }
 
-                SDL_PushGPUFragmentUniformData(commandBuffer, 0, &fragData, sizeof(FragmentUniform));
+                // Fragment Uniform (Set 3) - std140'a uygun dizilim
+                struct PBRUniforms {
+                    glm::vec4 baseColor;
+                    glm::vec4 lightDirInt;     // xyz = dir, w = intensity
+                    glm::vec4 lightColorMet;   // xyz = color, w = metallic
+                    glm::vec4 camPosRoughness; // xyz = camPos, w = roughness
+                    int useAlbedoMap;
+                    int useNormalMap;
+                    int useMetallicRoughnessMap;
+                    int _padding;
+                } fragData = {};
+                
+                fragData.baseColor = material->baseColor;
+                fragData.lightDirInt = glm::vec4(lightDir, lightInt);
+                fragData.lightColorMet = glm::vec4(lightCol, material->metallic);
+                fragData.camPosRoughness = glm::vec4(camPos, material->roughness);
+                fragData.useAlbedoMap = material->hasAlbedoTexture ? 1 : 0;
+                fragData.useNormalMap = material->hasNormalTexture ? 1 : 0;
+                fragData.useMetallicRoughnessMap = material->hasMetallicRoughnessTexture ? 1 : 0;
+                fragData._padding = 0;
+
+                SDL_PushGPUFragmentUniformData(commandBuffer, 0, &fragData, sizeof(PBRUniforms));
                 lastMaterialName = meshComp.materialName;
             }
 

@@ -43,6 +43,14 @@ void SandboxScene::init()
     );
     cameraEnt->cCamera.isActive = true;
 
+    // Işık (Güneş - Directional Light) entity'si oluştur
+    auto sunEnt = m_entityManager.addEntity("sun");
+    sunEnt->add<CLight>(
+        glm::vec3(1.0f, 0.95f, 0.8f), // Açık sarımsı güneş ışığı rengi
+        3.0f,                         // Işık şiddeti (Intensity)
+        glm::normalize(glm::vec3(-1.0f, -1.0f, -0.5f)) // Işık yönü
+    );
+
     // Küp entity'si oluştur (Parent)
     auto cubeEnt = m_entityManager.addEntity("cube");
     cubeEnt->add<CTransform>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f));
@@ -70,26 +78,28 @@ void SandboxScene::createCubeMesh()
 {
     using namespace Astral;
 
-    // 3D Küp Vertex'leri (Pozisyon, Renk, UV)
+    // 3D Küp Vertex'leri (Pos, Normal, UV, Tangent, Color)
+    glm::vec4 c1(1,0,0,1), c2(0,1,0,1), c3(0,0,1,1), c4(1,1,0,1), c5(1,0,1,1), c6(0,1,1,1);
+    
     std::vector<Vertex> vertices = {
-        // Ön Yüz
-        Vertex({-1, -1,  1}, {1, 0, 0}, {0, 1}), Vertex({ 1, -1,  1}, {0, 1, 0}, {1, 1}),
-        Vertex({ 1,  1,  1}, {0, 0, 1}, {1, 0}), Vertex({-1,  1,  1}, {1, 1, 0}, {0, 0}),
-        // Arka Yüz
-        Vertex({-1, -1, -1}, {1, 0, 1}, {1, 1}), Vertex({-1,  1, -1}, {0, 1, 1}, {1, 0}),
-        Vertex({ 1,  1, -1}, {1, 1, 1}, {0, 0}), Vertex({ 1, -1, -1}, {0, 0, 0}, {0, 1}),
-        // Üst Yüz
-        Vertex({-1,  1, -1}, {1, 0.5, 0}, {0, 0}), Vertex({-1,  1,  1}, {0.5, 1, 0}, {0, 1}),
-        Vertex({ 1,  1,  1}, {0, 0.5, 1}, {1, 1}), Vertex({ 1,  1, -1}, {1, 0, 0.5}, {1, 0}),
-        // Alt Yüz
-        Vertex({-1, -1, -1}, {0, 1, 0.5}, {1, 0}), Vertex({ 1, -1, -1}, {0.5, 0, 1}, {0, 0}),
-        Vertex({ 1, -1,  1}, {1, 0.5, 1}, {0, 1}), Vertex({-1, -1,  1}, {0.5, 1, 0.5}, {1, 1}),
-        // Sağ Yüz
-        Vertex({ 1, -1, -1}, {1, 0, 0}, {1, 1}), Vertex({ 1,  1, -1}, {0, 1, 0}, {1, 0}),
-        Vertex({ 1,  1,  1}, {0, 0, 1}, {0, 0}), Vertex({ 1, -1,  1}, {1, 1, 0}, {0, 1}),
-        // Sol Yüz
-        Vertex({-1, -1, -1}, {1, 0, 1}, {0, 1}), Vertex({-1, -1,  1}, {0, 1, 1}, {1, 1}),
-        Vertex({-1,  1,  1}, {1, 1, 1}, {1, 0}), Vertex({-1,  1, -1}, {0, 0, 0}, {0, 0})
+        // Ön Yüz (Normal: 0,0,1 | Tangent: 1,0,0,1)
+        Vertex({-1, -1,  1}, {0, 0, 1}, {0, 1}, {1, 0, 0, 1}, c1), Vertex({ 1, -1,  1}, {0, 0, 1}, {1, 1}, {1, 0, 0, 1}, c1),
+        Vertex({ 1,  1,  1}, {0, 0, 1}, {1, 0}, {1, 0, 0, 1}, c1), Vertex({-1,  1,  1}, {0, 0, 1}, {0, 0}, {1, 0, 0, 1}, c1),
+        // Arka Yüz (Normal: 0,0,-1 | Tangent: -1,0,0,1)
+        Vertex({-1, -1, -1}, {0, 0, -1}, {1, 1}, {-1, 0, 0, 1}, c2), Vertex({-1,  1, -1}, {0, 0, -1}, {1, 0}, {-1, 0, 0, 1}, c2),
+        Vertex({ 1,  1, -1}, {0, 0, -1}, {0, 0}, {-1, 0, 0, 1}, c2), Vertex({ 1, -1, -1}, {0, 0, -1}, {0, 1}, {-1, 0, 0, 1}, c2),
+        // Üst Yüz (Normal: 0,1,0 | Tangent: 1,0,0,1)
+        Vertex({-1,  1, -1}, {0, 1, 0}, {0, 0}, {1, 0, 0, 1}, c3), Vertex({-1,  1,  1}, {0, 1, 0}, {0, 1}, {1, 0, 0, 1}, c3),
+        Vertex({ 1,  1,  1}, {0, 1, 0}, {1, 1}, {1, 0, 0, 1}, c3), Vertex({ 1,  1, -1}, {0, 1, 0}, {1, 0}, {1, 0, 0, 1}, c3),
+        // Alt Yüz (Normal: 0,-1,0 | Tangent: 1,0,0,1)
+        Vertex({-1, -1, -1}, {0, -1, 0}, {1, 0}, {1, 0, 0, 1}, c4), Vertex({ 1, -1, -1}, {0, -1, 0}, {0, 0}, {1, 0, 0, 1}, c4),
+        Vertex({ 1, -1,  1}, {0, -1, 0}, {0, 1}, {1, 0, 0, 1}, c4), Vertex({-1, -1,  1}, {0, -1, 0}, {1, 1}, {1, 0, 0, 1}, c4),
+        // Sağ Yüz (Normal: 1,0,0 | Tangent: 0,0,-1,1)
+        Vertex({ 1, -1, -1}, {1, 0, 0}, {1, 1}, {0, 0, -1, 1}, c5), Vertex({ 1,  1, -1}, {1, 0, 0}, {1, 0}, {0, 0, -1, 1}, c5),
+        Vertex({ 1,  1,  1}, {1, 0, 0}, {0, 0}, {0, 0, -1, 1}, c5), Vertex({ 1, -1,  1}, {1, 0, 0}, {0, 1}, {0, 0, -1, 1}, c5),
+        // Sol Yüz (Normal: -1,0,0 | Tangent: 0,0,1,1)
+        Vertex({-1, -1, -1}, {-1, 0, 0}, {0, 1}, {0, 0, 1, 1}, c6), Vertex({-1, -1,  1}, {-1, 0, 0}, {1, 1}, {0, 0, 1, 1}, c6),
+        Vertex({-1,  1,  1}, {-1, 0, 0}, {1, 0}, {0, 0, 1, 1}, c6), Vertex({-1,  1, -1}, {-1, 0, 0}, {0, 0}, {0, 0, 1, 1}, c6)
     };
 
     std::vector<uint32_t> indices = {
@@ -113,24 +123,24 @@ void SandboxScene::loadShaders()
     // Shader dosyalarını yükle (SPIRV formatında)
     SDL_GPUShader* vertShader = ShaderLoader::loadShaderFromFile(
         device,
-        "assets/shaders/basic_3d.vert.glsl.spv",
+        "assets/shaders/pbr.vert.glsl.spv",
         SDL_GPU_SHADERSTAGE_VERTEX,
         "main",
         0, // samplers
         0, // storage textures
         0, // storage buffers
-        1  // uniform buffers (MVP matrisi için - Set 0, Binding 0)
+        1  // uniform buffers (MVP matrisi için)
     );
 
     SDL_GPUShader* fragShader = ShaderLoader::loadShaderFromFile(
         device,
-        "assets/shaders/basic_3d.frag.glsl.spv",
+        "assets/shaders/pbr.frag.glsl.spv",
         SDL_GPU_SHADERSTAGE_FRAGMENT,
         "main",
-        1, // samplers (albedoTex için - Set 2, Binding 0)
+        3, // samplers (albedo, normal, metallicRoughness)
         0, // storage textures
         0, // storage buffers
-        1  // uniform buffers (FragmentUniform için - Set 0, Binding 0)
+        1  // uniform buffers (PBR Uniforms)
     );
 
     if (!vertShader || !fragShader) {
@@ -170,10 +180,10 @@ void SandboxScene::createMaterials()
     // box.png yükle (assets/textures/ klasörüne atılmış olmalı)
     assetMgr.uploadTexture("box_tex", "assets/textures/box.png");
 
-    // Material yarat (Pipeline + Texture'u birleştirir)
-    assetMgr.createMaterial("box_material", "basic3d", "box_tex");
+    // PBR Material yarat (Albedo texture var, Normal/MR texture yok. Metallic: 0.1, Roughness: 0.8 ahşap kutu için uygun)
+    assetMgr.createMaterial("box_material", "basic3d", "box_tex", "", "", glm::vec4(1.0f), 0.1f, 0.8f);
 
-    SDL_Log("Material 'box_material' oluşturuldu!");
+    SDL_Log("PBR Material 'box_material' oluşturuldu!");
 }
 
 void SandboxScene::update(float deltaTime)

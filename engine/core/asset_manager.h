@@ -23,9 +23,18 @@ struct GPUMesh {
 struct Material {
     SDL_GPUGraphicsPipeline* pipeline = nullptr;
     SDL_GPUTexture* albedoTexture = nullptr;
+    SDL_GPUTexture* normalTexture = nullptr;
+    SDL_GPUTexture* metallicRoughnessTexture = nullptr;
     SDL_GPUSampler* sampler = nullptr;
+    
+    // PBR özellikleri
     glm::vec4 baseColor{1.0f, 1.0f, 1.0f, 1.0f};
+    float metallic{0.0f};
+    float roughness{0.5f};
+    
     bool hasAlbedoTexture{false};
+    bool hasNormalTexture{false};
+    bool hasMetallicRoughnessTexture{false};
 };
 
 // Pipeline Cache Key - Pipeline'ları önbelleklemek için
@@ -198,7 +207,7 @@ public:
         if (!m_gpuDevice) return nullptr;
 
         // Vertex Input State - Vertex layout'u tanımla
-        SDL_GPUVertexAttribute attributes[3];
+        SDL_GPUVertexAttribute attributes[5];
         Vertex::getAttributeDescriptions(attributes);
 
         SDL_GPUVertexBufferDescription vertexBufferDesc = Vertex::getBindingDescription();
@@ -208,7 +217,7 @@ public:
         vertexInputState.vertex_buffer_descriptions = &vertexBufferDesc;
         vertexInputState.num_vertex_buffers = 1;
         vertexInputState.vertex_attributes = attributes;
-        vertexInputState.num_vertex_attributes = 3;
+        vertexInputState.num_vertex_attributes = 5;
 
         // Rasterizer State
         SDL_GPURasterizerState rasterizerState = {};
@@ -393,15 +402,26 @@ public:
     // ============================================================================
 
     Material* createMaterial(const std::string& name, const std::string& pipelineName, 
-                             const std::string& textureName = "", const glm::vec4& baseColor = glm::vec4(1.0f)) 
+                             const std::string& albedoName = "", const std::string& normalName = "", const std::string& mrName = "",
+                             const glm::vec4& baseColor = glm::vec4(1.0f), float metallic = 0.0f, float roughness = 0.5f) 
     {
         auto mat = std::make_unique<Material>();
         mat->pipeline = getPipeline(pipelineName);
         mat->baseColor = baseColor;
+        mat->metallic = metallic;
+        mat->roughness = roughness;
 
-        if (!textureName.empty()) {
-            mat->albedoTexture = getTexture(textureName);
+        if (!albedoName.empty()) {
+            mat->albedoTexture = getTexture(albedoName);
             mat->hasAlbedoTexture = (mat->albedoTexture != nullptr);
+        }
+        if (!normalName.empty()) {
+            mat->normalTexture = getTexture(normalName);
+            mat->hasNormalTexture = (mat->normalTexture != nullptr);
+        }
+        if (!mrName.empty()) {
+            mat->metallicRoughnessTexture = getTexture(mrName);
+            mat->hasMetallicRoughnessTexture = (mat->metallicRoughnessTexture != nullptr);
         }
 
         if (m_samplers.empty()) {

@@ -8,20 +8,21 @@
 #include <memory>
 class Entity;
 
-// Varlıkların dünyadaki fiziksel varlığını (konum ve hız) temsil eder.
-// Veri odaklı tasarım (ECS) prensibi gereği mantıktan ayrılmıştır.
+// Entity (Varlık) nesnelerinin dünya uzayındaki (World Space) pozisyon, hız, ölçek ve rotasyon verilerini barındırır.
+// ECS (Entity-Component-System) ve DOD (Data-Oriented Design) mimarisi gereği, bu yapı içerisinde herhangi bir metot barındırılmaz.
+// Sadece veriyi yapısal olarak saklamakla yükümlüdür.
 struct CTransform
 {
-	glm::vec3 pos{ 0.0f, 0.0f, 0.0f }; // Yerel (Local) pozisyon
-	glm::vec3 velocity{ 0.0f, 0.0f, 0.0f };
-	glm::vec3 scale{ 1.0f, 1.0f, 1.0f }; // Yerel ölçek
-	glm::vec3 rotation{ 0.0f, 0.0f, 0.0f }; // Yerel rotasyon (Euler)
+	glm::vec3 pos{ 0.0f, 0.0f, 0.0f };      // Yerel (Local) 3D pozisyon vektörü
+	glm::vec3 velocity{ 0.0f, 0.0f, 0.0f }; // 3D Hız (Velocity) vektörü
+	glm::vec3 scale{ 1.0f, 1.0f, 1.0f };    // Yerel boyut/ölçek çarpanı
+	glm::vec3 rotation{ 0.0f, 0.0f, 0.0f }; // Yerel dönme açıları (Euler cinsinden)
 
-	// Scene Graph (Transform Hiyerarşisi)
-	std::weak_ptr<Entity> parent; // Parent (döngüsel referansı önlemek için weak_ptr)
-	std::vector<std::shared_ptr<Entity>> children; // Çocuklar
+	// Scene Graph (Transform Hiyerarşisi) Yönetimi
+	std::weak_ptr<Entity> parent;                  // Ebeveyn nesneye olan referans (Döngüsel bellek sızıntısını önlemek için weak_ptr kullanılmıştır)
+	std::vector<std::shared_ptr<Entity>> children; // Alt (çocuk) nesnelerin listesi
 
-	// Dünya koordinatlarındaki son hali
+	// Önceden hesaplanmış, güncel Dünya Koordinat Matrisi (World Transform Matrix)
 	glm::mat4 globalMatrix{ 1.0f };
 
 	bool has{ false };
@@ -33,14 +34,13 @@ struct CTransform
 		: pos(glm::vec3(p, 0.0f)), velocity(glm::vec3(v, 0.0f)) {}
 };
 
-// Varlıkların ekranda nasıl görüneceğini (boyut ve renk) tanımlar.
-// Çizim sistemi bu verileri kullanarak SDL_Render komutlarını oluşturur.
+// 2D çizim işlemleri için (Debug veya basit UI elemanları) kullanılan temel fiziksel ölçüleri ve RGBA renk bilgisini tanımlar.
 struct CShape
 {
 	float width{ 0.0f };
 	float height{ 0.0f };
 
-	// RGBA renk değerleri, her biri 0-255 arası tamsayıdır.
+	// RGBA renk kanalları (0-255 aralığında)
 	uint8_t r{ 255 }, g{ 255 }, b{ 255 }, a{ 255 };
 	bool has{ false };
 
@@ -112,6 +112,19 @@ struct CCamera
 	CCamera() = default;
 	CCamera(const glm::mat4& v, const glm::mat4& p)
 		: view(v), projection(p) {}
+};
+
+// Işık bileşeni (PBR için)
+struct CLight
+{
+	bool has{ false };
+	glm::vec3 color{ 1.0f, 1.0f, 1.0f };
+	float intensity{ 1.0f };
+    glm::vec3 direction{ 0.0f, -1.0f, 0.0f }; // Yönlü ışık için
+
+	CLight() = default;
+	CLight(const glm::vec3& c, float i, const glm::vec3& dir)
+		: color(c), intensity(i), direction(dir) {}
 };
 
 struct CLifeSpan

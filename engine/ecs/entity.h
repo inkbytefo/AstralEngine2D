@@ -14,27 +14,32 @@ using ComponentTuple = std::tuple<
 	CText,
 	CSprite,
 	CMesh,
-	CCamera
+	CCamera,
+    CLight
 >;
 
-// Oyundaki her türlü nesnenin (oyuncu, düşman, mermi) temelini oluşturur.
-// Sadece veri (bileşenler) ve kimlik bilgilerini barındıran hafif bir sınıftır.
+// Oyun içerisindeki tüm dinamik veya statik objelerin (Karakter, Silah, Kamera, Işık vb.) soyut temelini oluşturur.
+// Data-Oriented Design (DOD) mimarisine uygun olarak, nesne tabanlı kalıtım yerine kompozisyon kullanır.
+// Bu sınıf doğrudan hiçbir oyun mantığı barındırmaz, sadece kimlik (ID), etiket (Tag) ve kendisine ait Bileşenleri (Component) yönetir.
 class Entity
 {
-	// Bellek yönetimini ve varlık oluşturma sürecini kontrol altında tutmak için EntityManager'a yetki verilir.
+	// Yaşam döngüsü ve bellek tahsisi (Memory Allocation) sadece EntityManager tarafından yönetilmelidir.
 	friend class EntityManager;
 
 public:
-	// Varlığın hala aktif olup olmadığını kontrol eder, silinme aşamasındaki varlıkları filtrelemek için kullanılır.
+	// Nesnenin sahnede aktif olup olmadığını döndürür. Silinmek üzere işaretlenmiş nesneler false döner.
 	bool isActive() const	{ return m_active; }
-	// Varlığı bir sonraki karede temizlenmek üzere işaretler.
+	
+    // Nesneyi bir sonraki karede (frame) hafızadan kalıcı olarak silinmek üzere işaretler.
 	void destroy()			{ m_active = false; }
 
-	// Her varlığa atanan benzersiz kimlik, hata ayıklama ve takip için kritiktir.
+	// Nesneye ait sistem bazında eşsiz (unique) kimlik numarası.
 	uint32_t id() const		{ return m_id; }
-	// Gruplandırma (örn: "bullet", "enemy") yaparak toplu işlemler yapmayı sağlar.
+	
+    // Nesneleri filtrelemek ve gruplamak için kullanılan tanımlayıcı etiket (Örn: "enemy", "bullet").
 	std::string tag() const { return m_tag; }
 
+	// İstenilen tipteki bileşene (Component) doğrudan referans döndürür.
 	template <typename T>
 	T& get()
 	{
@@ -72,6 +77,7 @@ public:
 	CSprite& cSprite = get<CSprite>();
 	CMesh& cMesh = get<CMesh>();
 	CCamera& cCamera = get<CCamera>();
+    CLight& cLight = get<CLight>();
 
 private:
 	// Constructor private tutularak varlıkların rastgele değil, sadece yönetici üzerinden oluşturulması garanti edilir.

@@ -75,10 +75,12 @@ if(GLSLC_EXECUTABLE)
     # Shader kaynak dosyaları (GLSL formatında) - Stage bilgisi ile
     set(VERTEX_SHADERS
         "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/basic_3d.vert.glsl"
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/pbr.vert.glsl"
     )
     
     set(FRAGMENT_SHADERS
         "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/basic_3d.frag.glsl"
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/pbr.frag.glsl"
     )
     
     # Vertex Shader'ları derle
