@@ -40,5 +40,8 @@ private:
     Astral::EntityManager* m_entityManager{ nullptr };
     std::shared_ptr<Astral::Entity> m_selectedEntity{ nullptr };
     std::shared_ptr<Astral::Entity> m_contextMenuEntity{ nullptr };
+    std::shared_ptr<Astral::Entity> m_renameEntity{ nullptr };
     std::function<void(std::shared_ptr<Astral::Entity>)> m_onSelectionChanged;
+    char m_filterBuffer[256] = "";
+    char m_renameBuffer[256] = "";
 };

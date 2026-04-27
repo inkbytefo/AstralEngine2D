@@ -39,7 +39,7 @@ public:
 private:
     void handleMouse(const SDL_Event& event) {
         if (event.type == SDL_EVENT_MOUSE_MOTION) {
-            for (auto& entity : m_entityManager->view<CFreeLook>()) {
+            m_entityManager->each<CFreeLook>([&](const auto& entity) {
                 auto& look = entity->get<CFreeLook>();
                 if (look.isRightMouseDown) {
                     look.yaw += event.motion.xrel * look.sensitivity;
@@ -47,14 +47,14 @@ private:
                     if (look.pitch > 89.0f) look.pitch = 89.0f;
                     if (look.pitch < -89.0f) look.pitch = -89.0f;
                 }
-            }
+            });
         }
         else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
             if (event.button.button == SDL_BUTTON_RIGHT) {
                 bool pressed = (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN);
-                for (auto& entity : m_entityManager->view<CFreeLook>()) {
+                m_entityManager->each<CFreeLook>([&](const auto& entity) {
                     entity->get<CFreeLook>().isRightMouseDown = pressed;
-                }
+                });
                 
                 // Mouse'u kilitle/serbest bırak
                 if (m_app) {
@@ -72,13 +72,13 @@ private:
                 bool started = (event.type == SDL_EVENT_KEY_DOWN);
 
                 // 1. CInput bileşenlerini güncelle
-                for (auto& entity : m_entityManager->view<CInput>()) {
+                m_entityManager->each<CInput>([&](const auto& entity) {
                     auto& input = entity->get<CInput>();
                     if (action == "UP")    input.up = started;
                     if (action == "DOWN")  input.down = started;
                     if (action == "LEFT")  input.left = started;
                     if (action == "RIGHT") input.right = started;
-                }
+                });
 
                 // 2. Scene-specific action? (Daha sonra bir callback sistemi eklenebilir)
                 if (m_actionCallback) m_actionCallback(action, started);

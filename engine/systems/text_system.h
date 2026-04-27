@@ -4,6 +4,7 @@
 
 namespace Astral {
 
+/*
 class TextSystem : public ISystem {
 public:
     void update(EntityManager& entityManager, float deltaTime) override {
@@ -18,5 +19,6 @@ public:
     int32_t getPriority() const override { return 90; }
     const char* getName() const override { return "TextSystem"; }
 };
+*/
 
 } // namespace Astral

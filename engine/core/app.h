@@ -7,6 +7,8 @@
 #include "scene.h"
 #include "renderer/graphics_device.h"
 #include "renderer/renderer.h"
+#include "systems/render_system.h"
+#include "editor/editor_manager.h"
 #include <memory>
 
 class EditorManager;
@@ -20,7 +22,7 @@ public:
 	~App();
 
 	// Pencere oluşturma ve SDL sistemlerini ayağa kaldırma işlerini yapar.
-	bool init(const char* title, int width, int height);
+	void init(const char* title, int width, int height);
 	void run(); // Ana oyun döngüsünü başlatır.
 	void shutdown(); // Kaynakları temizleyerek programı güvenli şekilde kapatır.
 	void changeScene(std::unique_ptr<Scene> newScene);
@@ -34,6 +36,15 @@ public:
 	Astral::IRenderer* getRenderer() const { return m_renderer.get(); }
 
 private:
+	void activatePendingScene();
+	void handleSceneStateTransition(SceneState nextState);
+	void updateActiveScene(float deltaTime);
+	void renderActiveScene();
+	void registerEditorPanels();
+	void configureInputCallbacks();
+	Astral::CameraFrameData resolveActiveCamera() const;
+	void initializeTraits();
+
 	SDL_Window* m_window{ nullptr };
 	std::unique_ptr<Astral::IGraphicsDevice> m_graphicsDevice{ nullptr };
 	std::unique_ptr<Astral::IRenderer> m_renderer{ nullptr };
@@ -48,4 +59,5 @@ private:
 	Astral::SystemManager m_systemManager;
 	Astral::AssetManager m_assetManager;
 	std::unique_ptr<EditorManager> m_editorManager;
+	SceneState m_lastSceneState;
 };

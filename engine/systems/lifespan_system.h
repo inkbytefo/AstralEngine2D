@@ -7,7 +7,7 @@ namespace Astral {
 class LifespanSystem : public ISystem {
 public:
     void update(EntityManager& entityManager, float deltaTime) override {
-        for (auto& entity : entityManager.view<CLifeSpan>()) {
+        entityManager.each<CLifeSpan>([&](const auto& entity) {
             auto& lifespan = entity->get<CLifeSpan>();
             lifespan.remaining -= deltaTime;
 
@@ -18,7 +18,7 @@ public:
                 float ratio = lifespan.remaining / lifespan.total;
                 entity->get<CShape>().a = static_cast<uint8_t>(255.0f * ratio);
             }
-        }
+        });
     }
 
     int32_t getPriority() const override { return 30; }

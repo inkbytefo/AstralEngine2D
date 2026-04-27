@@ -2,7 +2,7 @@
 #include <glm/glm.hpp>
 #include <stdint.h>
 #include <string>
-#include <SDL3_ttf/SDL_ttf.h>
+// #include <SDL3_ttf/SDL_ttf.h> // Temporarily disabled for compilation
 
 #include <vector>
 #include <memory>
@@ -34,6 +34,8 @@ struct CTransform
 	bool has{ false };
 
 	CTransform() = default;
+	CTransform(const glm::vec3& p)
+		: pos(p) {}
 	CTransform(const glm::vec3& p, const glm::vec3& v)
 		: pos(p), velocity(v) {}
 	CTransform(const glm::vec2& p, const glm::vec2& v)
@@ -91,7 +93,7 @@ struct CSprite
 struct CMesh
 {
 	bool has{ false };
-	std::string meshName; // AssetManager'daki mesh ismi
+	std::string meshName; // IAssetRegistry::getMeshManager() ile yüklenen mesh ismi
 	std::string materialName; // Pipeline/Material ismi (opsiyonel)
 
 	CMesh() = default;
@@ -163,6 +165,7 @@ struct CLifeSpan
 	CLifeSpan(float totalTime) : total(totalTime), remaining(totalTime) {}
 };
 
+/*
 struct CText
 {
 	bool has{ false };
@@ -179,14 +182,14 @@ struct CText
 	CText(const std::string& t, TTF_Font* f, const SDL_Color& c)
 		: text(t), font(f), color(c), needsUpdate(true) {
 	}
-	
+
 	// Copy constructor - texture'ı kopyalamaz (cache, yeniden oluşturulacak)
-	CText(const CText& o) 
-		: has(o.has), text(o.text), font(o.font), color(o.color), 
+	CText(const CText& o)
+		: has(o.has), text(o.text), font(o.font), color(o.color),
 		  width(o.width), height(o.height), needsUpdate(true) {
 		// texture kopyalanmaz, yeniden oluşturulacak
 	}
-	
+
 	// Copy assignment
 	CText& operator=(const CText& o) {
 		if (this != &o) {
@@ -201,7 +204,7 @@ struct CText
 		}
 		return *this;
 	}
-	
+
 	~CText() = default;  // GpuTexture destructor'u otomatik cleanup yapacak
 
 	// Metni güncellemek için yardımcı fonksiyon
@@ -212,6 +215,7 @@ struct CText
         }
     }
 };
+*/
 
 
 struct CTrait

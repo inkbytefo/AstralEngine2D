@@ -13,7 +13,7 @@ using ComponentTuple = std::tuple<
 	CBBox,
 	CInput,
 	CLifeSpan,
-	CText,
+	// CText, // Temporarily disabled
 	CSprite,
 	CMesh,
 	CCamera,
@@ -40,8 +40,9 @@ public:
 	// Nesneye ait sistem bazında eşsiz (unique) kimlik numarası.
 	uint32_t id() const		{ return m_id; }
 	
-    // Nesneleri filtrelemek ve gruplamak için kullanılan tanımlayıcı etiket (Örn: "enemy", "bullet").
+	// Nesneleri filtrelemek ve gruplamak için kullanılan tanımlayıcı etiket (Örn: "enemy", "bullet").
 	std::string tag() const { return m_tag; }
+    void setTag(const std::string& tag) { m_tag = tag; }
 
 	// İstenilen tipteki bileşene (Component) doğrudan referans döndürür.
 	template <typename T>
@@ -77,7 +78,7 @@ public:
 	CBBox& cBBox = get<CBBox>();
 	CInput& cInput = get<CInput>();
 	CLifeSpan& cLifeSpan = get<CLifeSpan>();
-	CText& cText = get<CText>();
+	// CText& cText = get<CText>(); // Temporarily disabled
 	CSprite& cSprite = get<CSprite>();
 	CMesh& cMesh = get<CMesh>();
 	CCamera& cCamera = get<CCamera>();

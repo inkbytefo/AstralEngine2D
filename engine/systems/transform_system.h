@@ -12,12 +12,12 @@ public:
     {
         // 1. Önce "Kök" (Root) olan nesneleri bul
         // Kök nesne = parent'ı olmayan nesnelerdir.
-        for (auto& entity : entityManager.view<CTransform>()) {
+        entityManager.each<CTransform>([&](const auto& entity) {
             auto& transform = entity->get<CTransform>();
             if (transform.parent.expired()) { // Kök mü?
                 updateTransform(entity, glm::mat4(1.0f));
             }
-        }
+        });
     }
 
     int32_t getPriority() const override { return 0; }

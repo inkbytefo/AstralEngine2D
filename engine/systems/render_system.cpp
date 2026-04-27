@@ -8,6 +8,10 @@
 namespace Astral {
 
 void RenderSystem::update(Astral::EntityManager& entityManager, float deltaTime) {
+    if (!m_cameraData.isValid) {
+        m_cameraData = resolveSceneCamera(entityManager);
+    }
+
     // 1. Hazırlık (Sorting vs.)
     prepare(entityManager);
 
@@ -18,162 +22,182 @@ void RenderSystem::update(Astral::EntityManager& entityManager, float deltaTime)
 }
 
 void RenderSystem::prepare(Astral::EntityManager& entityManager) {
-    // 1. Render edilebilir varlıkları filtrele ve sırala (Pipeline > Material > Mesh)
-    m_renderQueue = entityManager.view<CMesh, CTransform>();
+    // 1. Batch entities by pipeline, mesh, and material for instanced rendering
+    m_renderQueue.clear();
+    m_batches.clear();
 
-    std::sort(m_renderQueue.begin(), m_renderQueue.end(), [](const auto& a, const auto& b) {
-        auto& ma = a->template get<CMesh>();
-        auto& mb = b->template get<CMesh>();
-        
-        if (ma.materialName != mb.materialName) return ma.materialName < mb.materialName;
-        return ma.meshName < mb.meshName;
+    entityManager.each<CMesh, CTransform>([&](const auto& entity) {
+        m_renderQueue.push_back(entity);
+
+        auto& meshComp = entity->template get<CMesh>();
+        auto& transform = entity->template get<CTransform>();
+
+        // Get assets
+        Material* material = m_assetManager->getMaterialManager().getMaterial(meshComp.materialName);
+        GPUMesh* mesh = m_assetManager->getMeshManager().getMesh(meshComp.meshName);
+
+        if (!material || !mesh || !material->pipeline) return;
+
+        // Create batch key
+        RenderBatch::Key key = {material->pipeline, mesh, material};
+
+        // Add to batch or create new batch
+        auto& batch = m_batches[key];
+        if (batch.isEmpty()) {
+            batch.pipeline = material->pipeline;
+            batch.mesh = mesh;
+            batch.material = material;
+        }
+
+        glm::mat4 model = transform.globalMatrix;
+        if (model == glm::mat4(1.0f) &&
+            (transform.pos != glm::vec3(0.0f) ||
+             transform.scale != glm::vec3(1.0f) ||
+             transform.rotation != glm::vec3(0.0f))) {
+            model = glm::translate(glm::mat4(1.0f), transform.pos);
+            if (transform.scale != glm::vec3(1.0f)) {
+                model = glm::scale(model, transform.scale);
+            }
+            if (transform.rotation != glm::vec3(0.0f)) {
+                model = glm::rotate(model, glm::radians(transform.rotation.x), glm::vec3(1, 0, 0));
+                model = glm::rotate(model, glm::radians(transform.rotation.y), glm::vec3(0, 1, 0));
+                model = glm::rotate(model, glm::radians(transform.rotation.z), glm::vec3(0, 0, 1));
+            }
+        }
+
+        batch.addInstance(model, entity->id());
     });
 }
 
 void RenderSystem::render(IRenderer* renderer, Astral::EntityManager& entityManager) {
     if (!renderer || !m_assetManager || !m_window) return;
 
-    // 1. Aktif Kamerayı Bul
-    glm::mat4 viewMatrix(1.0f);
-    glm::mat4 projMatrix(1.0f);
-    glm::vec3 camPos(0.0f);
-    bool cameraFound = false;
+    // Prepare render batches (group by pipeline/mesh/material for optimization)
+    prepare(entityManager);
 
-    if (m_useCameraOverride) {
-        viewMatrix = m_overrideView;
-        projMatrix = m_overrideProj;
-        camPos = m_overridePos;
-        cameraFound = true;
-    } else {
-        for (auto& entity : entityManager.view<CCamera, CTransform>()) {
-            auto& cam = entity->get<CCamera>();
-            if (cam.isActive) {
-                viewMatrix = cam.view;
-                projMatrix = cam.projection;
-                camPos = glm::vec3(entity->get<CTransform>().globalMatrix[3]);
-                cameraFound = true;
-                break;
-            }
-        }
-    }
-    
-    if (!cameraFound) return;
+    // Process batches for optimized rendering with minimized state changes
+    processBatches();
+}
 
-    // 2. Işık verisini bul
-    // ... (Light logic remains same but uses fragData below)
-
-    // 3. State Tracking & Drawing
-    AssetManager& assetMgr = *m_assetManager;
-    SDL_GPUGraphicsPipeline* lastPipeline = nullptr;
-    std::string lastMaterialName = "";
-    SDL_GPUBuffer* lastVertexBuffer = nullptr;
-    SDL_GPUBuffer* lastIndexBuffer = nullptr;
+void RenderSystem::processBatches() {
+    if (!m_renderer) return;
 
     m_drawCallCount = 0;
 
-    for (auto& entity : m_renderQueue) {
-        auto& meshComp = entity->template get<CMesh>();
-        auto& transform = entity->template get<CTransform>();
+    // Process each batch for instanced rendering
+    for (const auto& [key, batch] : m_batches) {
+        if (batch.isEmpty()) continue;
+        flushBatch(batch);
+    }
+
+    // Clear batches for next frame
+    m_batches.clear();
+}
+
+void RenderSystem::flushBatch(const RenderBatch& batch) {
+    // Bind pipeline (state minimization)
+    m_renderer->bindPipeline(batch.pipeline);
+
+    // Bind vertex buffers
+    SDL_GPUBufferBinding vertexBinding = { batch.mesh->vertexBuffer, batch.mesh->vertexOffset };
+    m_renderer->bindVertexBuffers(0, &vertexBinding, 1);
+
+    // Bind index buffer
+    SDL_GPUBufferBinding indexBinding = { batch.mesh->indexBuffer, batch.mesh->indexOffset };
+    m_renderer->bindIndexBuffer(&indexBinding, SDL_GPU_INDEXELEMENTSIZE_32BIT);
+
+    // For instanced rendering, we would need:
+    // 1. Instance buffer with transform matrices
+    // 2. Modified shader that reads per-instance data
+    // For now, render each instance separately but batched by state
+
+    // --- MATERIAL BINDING (STATE MINIMIZATION) ---
+    if (batch.material) {
+        auto& textureMgr = m_assetManager->getTextureManager();
+        SDL_GPUTexture* whiteTex = textureMgr.getWhiteTexture();
+        SDL_GPUTexture* normalTex = textureMgr.getNormalTexture();
+
+        SDL_GPUTexture* tex0 = batch.material->hasAlbedoTexture ? batch.material->albedoTexture : whiteTex;
+        SDL_GPUTexture* tex1 = batch.material->hasNormalTexture ? batch.material->normalTexture : normalTex;
+        SDL_GPUTexture* tex2 = batch.material->hasMetallicRoughnessTexture ? batch.material->metallicRoughnessTexture : whiteTex;
+
+        SDL_GPUTextureSamplerBinding bindings[3] = {
+            { tex0, batch.material->sampler },
+            { tex1, batch.material->sampler },
+            { tex2, batch.material->sampler }
+        };
+        m_renderer->bindFragmentSamplers(0, bindings, 3);
+
+        // PBR Uniform Data
+        struct GPULight {
+            glm::vec4 posType;     // xyz = pos, w = type
+            glm::vec4 colorInt;    // xyz = color, w = intensity
+            glm::vec4 dirRange;    // xyz = dir, w = range
+            glm::vec4 cutoff;      // x = inner, y = outer
+        };
+
+        struct PBRUniforms {
+            glm::vec4 baseColor;         
+            glm::vec4 camPosRoughness;   
+            GPULight lights[8];
+            int32_t lightCount;
+            int32_t useAlbedoMap;
+            int32_t useNormalMap;
+            int32_t useMetallicRoughnessMap;
+            int32_t padding; // Alignment
+        } fragData = {};
         
-        Material* material = assetMgr.getMaterial(meshComp.materialName);
-        GPUMesh* mesh = assetMgr.getMesh(meshComp.meshName);
-
-        if (!mesh || !material || !material->pipeline) continue;
-
-        // --- STATE MINIMIZATION ---
+        fragData.baseColor = batch.material->baseColor;
+        fragData.camPosRoughness = glm::vec4(m_cameraData.position, batch.material->roughness);
+        fragData.baseColor.a = batch.material->metallic; // Pack metallic in alpha? Or use separate field if struct matches
         
-        // A. Pipeline Binding
-        if (material->pipeline != lastPipeline) {
-            renderer->bindPipeline(material->pipeline);
-            lastPipeline = material->pipeline;
-        }
+        // Note: For now we don't have light logic here, we'd need to pass light data to RenderSystem
+        fragData.lightCount = 0; 
+        fragData.useAlbedoMap = batch.material->hasAlbedoTexture ? 1 : 0;
+        fragData.useNormalMap = batch.material->hasNormalTexture ? 1 : 0;
+        fragData.useMetallicRoughnessMap = batch.material->hasMetallicRoughnessTexture ? 1 : 0;
 
-        // B. Material Binding (Texture & Uniforms)
-        if (meshComp.materialName != lastMaterialName) {
-            SDL_GPUTexture* whiteTex = assetMgr.getWhiteTexture();
-            SDL_GPUTexture* normalTex = assetMgr.getNormalTexture();
+        m_renderer->pushFragmentUniformData(0, &fragData, sizeof(PBRUniforms));
+    }
 
-            SDL_GPUTexture* tex0 = material->hasAlbedoTexture ? material->albedoTexture : whiteTex;
-            SDL_GPUTexture* tex1 = material->hasNormalTexture ? material->normalTexture : normalTex;
-            SDL_GPUTexture* tex2 = material->hasMetallicRoughnessTexture ? material->metallicRoughnessTexture : whiteTex;
+    // TODO: Implement full instanced rendering
+    // For now, render each instance individually but with minimized state changes
+    for (size_t i = 0; i < batch.transforms.size(); ++i) {
+        // Set model matrix uniform
+        UniformData uniforms;
+        uniforms.model = batch.transforms[i];
+        uniforms.view = m_cameraData.view;
+        uniforms.projection = m_cameraData.projection;
 
-            SDL_GPUTextureSamplerBinding bindings[3] = {
-                { tex0, material->sampler },
-                { tex1, material->sampler },
-                { tex2, material->sampler }
-            };
-            renderer->bindFragmentSamplers(0, bindings, 3);
+        m_renderer->pushVertexUniformData(0, &uniforms, sizeof(UniformData));
 
-            // Fragment Uniform (Set 3) - Multi-Light PBR
-            struct GPULight {
-                glm::vec4 posType;     // xyz = pos, w = type
-                glm::vec4 colorInt;    // xyz = color, w = intensity
-                glm::vec4 dirRange;    // xyz = dir, w = range
-                glm::vec4 cutoff;      // x = inner, y = outer
-            };
-
-            struct PBRUniforms {
-                glm::vec4 baseColor;         
-                glm::vec4 camPosRoughness;   
-                GPULight lights[8];
-                int32_t lightCount;
-                int32_t useAlbedoMap;
-                int32_t useNormalMap;
-                int32_t useMetallicRoughnessMap;
-            } fragData = {};
-            
-            fragData.baseColor = material->baseColor;
-            fragData.baseColor.a = material->metallic;
-            fragData.camPosRoughness = glm::vec4(camPos, material->roughness);
-            
-            int lightIdx = 0;
-            for (auto& e : entityManager.view<CLight>()) {
-                if (lightIdx >= 8) break;
-                auto& l = e->template get<CLight>();
-                GPULight& gpuL = fragData.lights[lightIdx];
-                glm::vec3 pos(0.0f);
-                if (l.type != LightType::Directional && e->has<CTransform>()) {
-                    pos = glm::vec3(e->template get<CTransform>().globalMatrix[3]);
-                }
-                gpuL.posType = glm::vec4(pos, (float)l.type);
-                gpuL.colorInt = glm::vec4(l.color, l.intensity);
-                gpuL.dirRange = glm::vec4(l.direction, l.range);
-                gpuL.cutoff = glm::vec4(l.innerCutoff, l.outerCutoff, 0.0f, 0.0f);
-                lightIdx++;
-            }
-            fragData.lightCount = lightIdx;
-            fragData.useAlbedoMap = material->hasAlbedoTexture ? 1 : 0;
-            fragData.useNormalMap = material->hasNormalTexture ? 1 : 0;
-            fragData.useMetallicRoughnessMap = material->hasMetallicRoughnessTexture ? 1 : 0;
-
-            renderer->pushFragmentUniformData(0, &fragData, sizeof(PBRUniforms));
-            lastMaterialName = meshComp.materialName;
-        }
-
-        // C. Buffer Binding
-        if (mesh->vertexBuffer != lastVertexBuffer) {
-            SDL_GPUBufferBinding vBinding = { mesh->vertexBuffer, 0 };
-            renderer->bindVertexBuffers(0, &vBinding, 1);
-            lastVertexBuffer = mesh->vertexBuffer;
-        }
-
-        if (mesh->indexBuffer != lastIndexBuffer) {
-            SDL_GPUBufferBinding iBinding = { mesh->indexBuffer, 0 };
-            renderer->bindIndexBuffer(&iBinding, SDL_GPU_INDEXELEMENTSIZE_32BIT);
-            lastIndexBuffer = mesh->indexBuffer;
-        }
-
-        // --- PER-OBJECT DATA ---
-        UniformData uniforms = { transform.globalMatrix, viewMatrix, projMatrix };
-        renderer->pushVertexUniformData(0, &uniforms, sizeof(UniformData));
-
-        // --- DRAW ---
-        uint32_t firstIndex = mesh->indexOffset / sizeof(uint32_t);
-        int32_t vertexOffset = mesh->vertexOffset / sizeof(Vertex);
-        
-        renderer->drawIndexed(mesh->indexCount, 1, firstIndex, vertexOffset, 0);
+        // Draw indexed
+        m_renderer->drawIndexed(batch.mesh->indexCount, 1, 0, 0, 0);
         m_drawCallCount++;
     }
+}
+
+CameraFrameData RenderSystem::resolveSceneCamera(Astral::EntityManager& entityManager) const {
+    CameraFrameData resolved;
+
+    entityManager.each<CCamera, CTransform>([&](const auto& entity) {
+        if (resolved.isValid) {
+            return;
+        }
+
+        auto& camera = entity->get<CCamera>();
+        auto& transform = entity->get<CTransform>();
+        if (!camera.isActive) {
+            return;
+        }
+
+        resolved.view = camera.view;
+        resolved.projection = camera.projection;
+        resolved.position = transform.pos;
+        resolved.isValid = true;
+    });
+
+    return resolved;
 }
 
 } // namespace Astral

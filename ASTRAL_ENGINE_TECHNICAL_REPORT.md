@@ -1,574 +1,290 @@
-# ASTRAL ENGINE - Kod Tabanı Analiz Raporu
+# Astral Engine Teknik Inceleme ve Refaktor Roadmap
 
 **Tarih:** 27 Nisan 2026  
-**Analiz Eden:** Claude (Haiku 4.5)  
-**Proje:** Astral Engine 2D/3D  
+**Hazirlayan:** Kilo  
+**Proje:** Astral Engine  
 **Dil:** C++20
 
 ---
 
-## 1. GENEL BAKIŞ
+## Ozet
 
-Astral Engine, SDL3 ve modern C++ (C++20) kullanılarak geliştirilmiş, hafif ve modüler bir oyun motoru iskeletidir. Proje, **Veri Odaklı Tasarım (Data-Oriented Design)** ve **Entity-Component-System (ECS)** mimarisini temel alır. Kod tabanı, 2D sprite tabanlı oyunlardan 3D mesh rendering'e kadar çeşitli oyun türlerini destekleyecek şekilde tasarlanmıştır.
+Proje su anda SDL3 GPU tabanli, editor entegreli, ECS odakli erken asama bir 3D oyun motoru durumunda. Temel yon dogru secilmis:
 
-**Teknoloji Stack:**
-- **Grafik API:** SDL3 GPU (Vulkan backend)
-- **Matematik:** GLM (OpenGL Mathematics)
-- **UI:** ImGui + ImGuizmo
-- **Asset Format:** glTF 2.0 (cgltf kütüphanesi ile)
-- **Shader Format:** GLSL → SPIR-V (glslc derleyicisi)
-- **Build Sistemi:** CMake 3.10+
+- `engine/` ve `games/` ayrimi net
+- `App -> Scene -> SystemManager -> Renderer/Editor` akis modeli anlasilir
+- Asset yonetimi registry/manager ayrimi ile genislemeye uygun
+- SDL3 GPU, PBR shader, glTF import ve editor viewport hedefleri tutarli
 
-**Olgunluk Seviyesi:** Erken aşama (Alpha). Temel ECS altyapısı ve render pipeline'ı tamamlanmış, ancak birçok sistem kısmi implementasyon durumundadır.
+Kod tabani calisabilir durumda, ancak buyumeden once cekirdek mimaride birkac kritik duzenleme yapilmasi gerekiyor.
 
 ---
 
-## 2. DİZİN YAPISI
+## Mevcut Mimari
 
-```
-Astral/
-├── engine/
-│   ├── core/                    # Motorun çekirdeği
-│   │   ├── app.h/cpp            # Ana uygulama sınıfı, SDL yönetimi
-│   │   ├── entity_manager.h/cpp # Entity yaşam döngüsü yönetimi
-│   │   ├── system_manager.h/cpp # Sistem kayıt ve çalıştırma
-│   │   ├── scene.h              # Sahne temel sınıfı (soyut)
-│   │   ├── asset_manager.h      # GPU kaynakları (mesh, texture, pipeline)
-│   │   ├── gltf_loader.h/cpp    # glTF 2.0 model yükleme
-│   │   ├── scene_serializer.h   # Sahne kaydetme/yükleme
-│   │   ├── shader_loader.h      # SPIR-V shader yükleme
-│   │   ├── sound_manager.h      # Ses yönetimi (stub)
-│   │   ├── level_loader.h       # Level JSON yükleme (stub)
-│   │   └── json.hpp             # nlohmann/json kütüphanesi
-│   │
-│   ├── ecs/                     # Entity-Component-System
-│   │   ├── entity.h             # Entity sınıfı (ID, tag, component tuple)
-│   │   ├── components.h         # Tüm component tanımları
-│   │   └── trait.h              # Trait (script-like behavior) arayüzü
-│   │
-│   ├── systems/                 # Tüm sistem implementasyonları
-│   │   ├── system.h             # ISystem arayüzü
-│   │   ├── render_system.h/cpp  # 3D rendering (MVP, PBR)
-│   │   ├── physics_system.h     # Basit kinematik (velocity → position)
-│   │   ├── input_system.h       # Keyboard/Mouse input
-│   │   ├── camera_system.h      # Free-look kamera (WASD + sağ tık)
-│   │   ├── transform_system.h   # Scene graph (parent-child hiyerarşi)
-│   │   ├── trait_system.h/cpp   # Trait çalıştırma
-│   │   ├── lifespan_system.h    # Entity ömrü (fade-out)
-│   │   └── text_system.h        # Text rendering (stub)
-│   │
-│   ├── renderer/                # Rendering abstraction
-│   │   ├── graphics_device.h    # IGraphicsDevice arayüzü
-│   │   ├── renderer.h           # IRenderer arayüzü
-│   │   ├── sdl3_graphics_device.h/cpp  # SDL3 GPU implementasyonu
-│   │   └── sdl3_renderer.h/cpp         # SDL3 render pass yönetimi
-│   │
-│   ├── editor/                  # Editor UI (ImGui)
-│   │   ├── editor_manager.h/cpp # Editor ana yöneticisi
-│   │   └── panels/              # ImGui panelleri
-│   │       ├── viewport_panel.h/cpp        # 3D viewport
-│   │       ├── scene_hierarchy_panel.h/cpp # Entity ağacı
-│   │       ├── properties_panel.h/cpp      # Component inspector
-│   │       ├── console_panel.h/cpp         # Debug konsolu
-│   │       └── content_browser_panel.h/cpp # Asset browser
-│   │
-│   ├── math/
-│   │   └── vertex.h             # GPU vertex yapısı (64 bytes)
-│   │
-│   └── vendor/                  # Harici kütüphaneler
-│       ├── imgui/               # ImGui + backends
-│       ├── glm/                 # GLM matematik
-│       └── cgltf/               # glTF parser
-│
-├── games/
-│   └── sandbox/                 # Test oyunu
-│       ├── main.cpp
-│       ├── sandbox_scene.h/cpp
-│       └── pong_level.json
-│
-├── assets/
-│   ├── shaders/                 # GLSL → SPIR-V
-│   │   ├── basic_3d.vert/frag.glsl
-│   │   ├── pbr.vert/frag.glsl
-│   │   └── *.spv (derlenmiş)
-│   ├── textures/                # PNG görseller
-│   ├── models/                  # glTF modeller
-│   ├── sounds/                  # WAV ses dosyaları
-│   ├── fonts/                   # TTF fontlar
-│   └── levels/                  # JSON level dosyaları
-│
-├── docs/                        # Teknik dokümantasyon
-│   ├── architecture.md
-│   ├── graphics_pipeline.md
-│   ├── editor_design.md
-│   └── getting_started.md
-│
-├── CMakeLists.txt               # Build konfigürasyonu
-├── CMakePresets.json
-└── README.md
-```
+### Katmanlar
+
+- `engine/core`: uygulama omurgasi, scene, entity/system yonetimi, asset registry
+- `engine/ecs`: entity, component ve trait modeli
+- `engine/systems`: input, transform, camera, physics, render, trait
+- `engine/renderer`: SDL3 GPU abstraction ve render backend
+- `engine/editor`: ImGui tabanli editor ve paneller
+- `games/sandbox`: motoru kullanan ornek scene
+
+### Ana Akis
+
+1. `games/sandbox/main.cpp` uygulamayi baslatir.
+2. `App` SDL, GPU, editor ve sistemleri ayaga kaldirir.
+3. `Scene` kendi entity dunyasini kurar.
+4. `SystemManager` sistemleri priority sirasiyla calistirir.
+5. `RenderSystem` entity verisini renderer uzerinden GPU'ya cizer.
+6. `EditorManager` viewport ve panel UI'sini sahne texture'i ustunde sunar.
+
+### Mimari Karakteri
+
+Bugunku haliyle motoru en dogru tanimlayan ifade su:
+
+> SDL3 GPU tabanli, editor entegreli, compile-time component tuple kullanan, scene ve sandbox odakli erken asama bir 3D ECS oyun motoru.
 
 ---
 
-## 3. ECS MİMARİSİ
+## Guclu Yonler
 
-### 3.1 Genel Yapı
-
-Astral Engine, **Tuple-based ECS** mimarisi kullanır. Bu, tüm component'ların bir `std::tuple` içinde saklanmasını ve compile-time type safety sağlamasını anlamına gelir.
-
-```cpp
-// Entity sınıfı içinde:
-using ComponentTuple = std::tuple<
-    CTransform, CShape, CBBox, CInput, CLifeSpan, CText, 
-    CSprite, CMesh, CCamera, CLight, CFreeLook, CTrait
->;
-
-class Entity {
-    uint32_t m_id;
-    std::string m_tag;
-    bool m_active;
-    ComponentTuple m_components;  // Tüm component'lar burada
-};
-```
-
-**Avantajlar:**
-- Compile-time type checking
-- Cache-friendly (tüm component'lar bir entity'de)
-- Basit ve anlaşılır
-
-**Dezavantajlar:**
-- Sparse set değil (boş component'lar da bellek tutar)
-- Archetype-based query yok (view() her seferinde filtreler)
-- Scalability sınırlı (component sayısı arttıkça tuple büyür)
-
-### 3.2 Entity Yönetimi
-
-**EntityManager** sorumluluğu:
-- Entity oluşturma/silme (gecikmeli işlem)
-- ID üretimi (uint32_t counter)
-- Tag-based filtreleme
-- Component-based view (query)
-
-```cpp
-class EntityManager {
-    EntityVec m_entities;        // Aktif entity'ler
-    EntityVec m_toAdd;           // Sonraki frame'de eklenecekler
-    EntityMap m_entityMap;       // Tag → EntityVec
-    uint32_t m_totalEntites;     // ID counter
-    
-    // Gecikmeli işlem (Delayed Dispatch)
-    void update() {
-        // m_toAdd'deki entity'leri m_entities'e taşı
-        // Silinmiş entity'leri temizle
-    }
-};
-```
-
-**Gecikmeli İşlem Avantajı:** Oyun döngüsü sırasında iterator invalidation'dan kaçınır.
-
-### 3.3 Component Sistemi
-
-**12 Component Tanımı:**
-
-| Component | Alanlar | Amaç |
-|-----------|---------|------|
-| **CTransform** | pos, velocity, scale, rotation, parent, children, globalMatrix | 3D pozisyon, hız, ölçek, rotasyon, scene graph |
-| **CShape** | width, height, r, g, b, a | 2D şekil ve renk (debug/UI) |
-| **CBBox** | width, height | Bounding box (collision) |
-| **CInput** | up, down, left, right | Keyboard input state |
-| **CSprite** | texture, srcRect, angle | 2D sprite rendering |
-| **CMesh** | meshName, materialName | 3D mesh referansı |
-| **CCamera** | view, projection, aspectRatio, isActive | Kamera matrisleri |
-| **CFreeLook** | yaw, pitch, speed, sensitivity, mouseState | Free-look kamera kontrol |
-| **CLight** | type, color, intensity, direction, range, cutoff | PBR ışık (Directional/Point/Spot) |
-| **CLifeSpan** | remaining, total | Entity ömrü (fade-out) |
-| **CText** | text, font, color, texture, needsUpdate | Text rendering |
-| **CTrait** | traits (vector) | Script-like behavior'lar |
-
-### 3.4 System Mimarisi
-
-**ISystem Arayüzü:**
-```cpp
-class ISystem {
-    virtual void init(EntityManager&) {}
-    virtual void update(EntityManager&, float deltaTime) = 0;
-    virtual void onEvent(const SDL_Event&) {}
-    virtual void shutdown() {}
-    virtual int32_t getPriority() const { return 0; }
-    virtual const char* getName() const = 0;
-};
-```
-
-**SystemManager:**
-- Sistem kayıt ve çalıştırma
-- Priority-based sıralama
-- Event dispatch
-
-### 3.5 Query Pattern (View)
-
-```cpp
-// Component-based filtering
-auto entities = entityManager.view<CTransform, CCamera>();
-
-// Variadic template ile compile-time check
-template <typename... T>
-EntityVec view() {
-    EntityVec result;
-    for (auto& entity : m_entities) {
-        if (entity->isActive() && (entity->has<T>() && ...)) {
-            result.push_back(entity);
-        }
-    }
-    return result;
-}
-```
-
-**Sorun:** Her çağrıda O(n) filtreleme yapılır. Archetype caching yok.
+- `engine` ve `games` ayrimi uzun vadede dogru
+- `SystemManager` ile update/event orchestration sade
+- `AssetRegistry` ve alt manager'lar temiz bir genisleme noktasi sunuyor
+- `RenderSystem` 3D/PBR yonunu netlestiriyor
+- `EditorManager` docking, hierarchy, inspector ve viewport temelini atmis
+- `SceneSerializer` ile play/edit snapshot mantigi dusunulmus
+- `Trait` sistemi ile script-benzeri davranislar icin zemin var
 
 ---
 
-## 4. MEVCUT SİSTEMLER
+## Tespit Edilen Zayifliklar
 
-| Sistem | Dosya | Durum | Bağımlı Component'lar | Açıklama |
-|--------|-------|-------|----------------------|----------|
-| **RenderSystem** | render_system.h/cpp | ✅ Kısmi | CMesh, CTransform, CCamera, CLight | 3D mesh rendering, MVP matrisleri, PBR uniform'ları |
-| **PhysicsSystem** | physics_system.h | ✅ Tamamlanmış | CTransform | Basit kinematik (pos += velocity * dt) |
-| **InputSystem** | input_system.h | ✅ Tamamlanmış | CInput, CFreeLook | Keyboard/Mouse input, action mapping |
-| **CameraSystem** | camera_system.h | ✅ Tamamlanmış | CCamera, CFreeLook, CTransform, CInput | Free-look kamera (WASD + sağ tık) |
-| **TransformSystem** | transform_system.h | ✅ Tamamlanmış | CTransform | Scene graph (parent-child hiyerarşi, globalMatrix) |
-| **LifespanSystem** | lifespan_system.h | ✅ Tamamlanmış | CLifeSpan, CShape | Entity ömrü, fade-out efekti |
-| **TextSystem** | text_system.h | ⚠️ Stub | CText, CTransform | Text rendering (boş implementasyon) |
-| **TraitSystem** | trait_system.h/cpp | ⚠️ Kısmi | CTrait | Trait çalıştırma (onInit, onUpdate, onCollision) |
+### 1. ECS belgede anlatilandan daha basit
 
-**Çalışma Sırası (Priority):**
-1. InputSystem (-100) → Keyboard/Mouse input
-2. PhysicsSystem (10) → Kinematik (tek otorite)
-3. TransformSystem (0) → Scene graph
-4. LifespanSystem (30) → Ömür azaltma
-5. CameraSystem (20) → Kamera güncelleme
-6. TextSystem (90) → Text caching
-7. RenderSystem (100) → Rendering
+Dokumantasyonda DOD/ECS vurgusu guclu, fakat implementasyon gercekte:
 
----
+- `shared_ptr<Entity>` tabanli
+- entity icinde tuple component saklayan
+- runtime filtreleme yapan bir yapi
 
-## 5. MEVCUT COMPONENT'LAR
+Bu kotu degil, ama gercek bir SoA/archetype ECS degil. Beklenti ile implementasyon arasinda fark var.
 
-| Component | Alanlar | Kullanan Sistemler | Varsayılan Değer |
-|-----------|---------|-------------------|-----------------|
-| **CTransform** | pos(0,0,0), velocity(0,0,0), scale(1,1,1), rotation(0,0,0), parent, children, globalMatrix | Tüm sistemler | Identity matrix |
-| **CShape** | width(0), height(0), r/g/b/a(255) | RenderSystem (2D) | Beyaz, 0x0 |
-| **CBBox** | width(0), height(0) | Collision (stub) | 0x0 |
-| **CInput** | up/down/left/right(false) | InputSystem, CameraSystem | Tüm false |
-| **CSprite** | texture(nullptr), srcRect(0,0,0,0), angle(0) | RenderSystem (2D) | Boş |
-| **CMesh** | meshName(""), materialName("default") | RenderSystem (3D) | Default material |
-| **CCamera** | view/projection(identity), aspectRatio(16:9), isActive(true) | RenderSystem, CameraSystem | Identity matrices |
-| **CFreeLook** | yaw(-90), pitch(0), speed(10), sensitivity(0.1), mouseState | CameraSystem, InputSystem | Standart FPS kamera |
-| **CLight** | type(Directional), color(1,1,1), intensity(1), direction(0,-1,0), range(20) | RenderSystem | Directional ışık |
-| **CLifeSpan** | remaining(0), total(0) | LifespanSystem | Sonsuz ömür |
-| **CText** | text(""), font(nullptr), color(255,255,255,255), texture(nullptr), needsUpdate(true) | TextSystem, RenderSystem | Boş metin |
-| **CTrait** | traits (vector) | TraitSystem | Boş vector |
+### 2. `EntityManager::view()` frame bazli allocation uretiyor
 
----
+Her cagrida yeni `EntityVec` olusturuluyor. Ustune `shrink_to_fit()` cagrisi heap churn olusturabilir.
 
-## 6. ÇALIŞAN ÖZELLİKLER
+### 3. `App` sinifi fazla sorumluluk yuklenmis
 
-### Rendering
-- ✅ 3D mesh rendering (glTF modeller)
-- ✅ PBR material system (Albedo, Normal, Metallic-Roughness)
-- ✅ Multiple light types (Directional, Point, Spot)
-- ✅ MVP matrix transformations
-- ✅ Shader compilation (GLSL → SPIR-V)
-- ✅ Mega-buffer architecture (50MB vertex, 20MB index)
-- ✅ Texture loading (PNG via SDL_image)
-- ⚠️ 2D sprite rendering (CSprite component var ama render kodu eksik)
+Tek sinif su anda:
 
-### Input Handling
-- ✅ Keyboard input (WASD, custom action mapping)
-- ✅ Mouse input (relative motion, button detection)
-- ✅ Free-look camera (right-click + mouse)
-- ✅ Action callback system
+- SDL init/shutdown
+- GPU init
+- ses sistemi init
+- sistem kaydi
+- scene switching
+- editor panel lifecycle
+- play/edit state gecisleri
+- snapshot yonetimi
+- ana loop
+- render orchestration
 
-### Scene Management
-- ✅ Entity-based scene graph
-- ✅ Parent-child transform hierarchy
-- ✅ Scene serialization (JSON)
-- ✅ glTF model loading with hierarchy
+Bu buyudugunde bakimi zorlastirir.
 
-### Asset Management
-- ✅ GPU mesh upload (mega-buffer)
-- ✅ Texture loading and caching
-- ✅ Shader loading (SPIR-V)
-- ✅ Pipeline creation and caching
-- ✅ Material management
-- ✅ Font loading (TTF)
-- ✅ Fallback textures (white, black, default normal)
+### 4. Runtime/editor/state gecisleri daginik
 
-### Physics
-- ✅ Basit kinematik (velocity-based movement)
-- ❌ Collision detection (stub)
-- ❌ Rigid body dynamics
-- ❌ Gravity
+Play, pause, stop ve snapshot davranisi birden fazla yerde dagitilmis:
 
-### Audio
-- ❌ Sound playback (SDL_mixer bağlı ama implementasyon yok)
-- ❌ Music management
+- `App`
+- `EditorManager`
+- `ViewportPanel`
 
-### Editor
-- ✅ ImGui integration
-- ✅ Viewport panel (3D view)
-- ✅ Scene hierarchy panel
-- ✅ Properties panel (component inspector)
-- ✅ Console panel
-- ✅ Content browser panel
+Bu state machine tek elde toplanmali.
+
+### 5. Kamera akisi yeterince soyut degil
+
+`RenderSystem` editor override ile calisiyor. Gameplay camera ve editor camera icin net bir ortak kontrat yok.
+
+### 6. Render batching var ama gercek instancing yok
+
+Benzer objeler gruplanmis, fakat cizim hala tek tek draw call ile yapiliyor.
+
+### 7. Light sistemi render'a tam bagli degil
+
+`CLight` mevcut, shader uniform yapisi hazir, fakat render tarafinda aktif isik toplama ve shader'a gecirme tam degil.
+
+### 8. GLTF loader header-only tasarlanmis
+
+`gltf_loader.h` icinde cok fazla implementasyon var. Bu derleme suresini ve bagimlilik yogunlugunu arttiriyor.
+
+### 9. Dokumantasyon geride kalmis
+
+- README hala agirlikli olarak 2D anlatiyor
+- klasor isimleri guncel degil
+- editor ve 3D/PBR karakteri tam yansimiyor
+
+### 10. Test kapsami cekirdek davranislari guvencelemiyor
+
+Ozellikle eksik alanlar:
+
+- scene serializer
+- transform hierarchy
+- trait lifecycle
+- camera secimi
+- asset fallback davranisi
 
 ---
 
-## 7. EKSİKLER VE SONRAKİ ADIMLAR
+## Onerilen Refaktor Yonu
 
-### Yarım Kalmış Implementasyonlar
+### Kisa Vade
 
-1. **TextSystem** - Boş implementasyon
-   - CText component'ı var ama render kodu yok
-   - Font caching mekanizması eksik
-   - Metin texture'ı güncelleme mantığı eksik
+- `App` icindeki runtime/editor/state sorumluluklarini ayir
+- play/pause/stop/snapshot akislarini tek merkezde topla
+- camera source mantigini soyutla
+- `view()` allocation maliyetini azalt
 
-2. **Collision System** - Tamamen eksik
-   - CBBox component var ama kullanılmıyor
-   - checkCollision() helper fonksiyonu var ama sistem yok
-   - Collision callbacks (onCollision) tanımlanmış ama çalışmıyor
+### Orta Vade
 
-3. **Sound Manager** - Stub
-   - SDL_mixer bağlı ama implementasyon yok
-   - Sound playback, music management yok
+- render path'i netlestir: aktif kamera, isik toplama, instancing
+- GLTF importu `.cpp` tabanli hale getir
+- editor panel lifecycle ve scene binding'i sadeleştir
 
-4. **Level Loader** - Stub
-   - LevelLoader sınıfı tanımlanmış ama boş
-   - JSON level parsing yok
+### Uzun Vade
 
-5. **2D Sprite Rendering** - Kısmi
-   - CSprite component var
-   - RenderSystem'de 3D mesh rendering var ama 2D sprite kodu eksik
-
-6. **Trait System** - Kısmi
-   - ITrait arayüzü tanımlanmış
-   - TraitSystem::update() implementasyonu eksik
-   - Collision callback'leri çalışmıyor
-
-### TODO/FIXME Yorum Satırları
-
-```cpp
-// CSprite'da:
-// SDL_GPUTexture boyutu farkli alinir
-// (Kod commented out, boyut alma mekanizması eksik)
-
-// CText'te:
-// SDL_ReleaseGPUTexture(m_gpuDevice, texture); 
-// (Device referansi lazım - cleanup eksik)
-```
-
-### Stub Fonksiyonlar
-
-- `LevelLoader` - Tüm metodlar boş
-- `SoundManager` - Tüm metodlar boş
-- `TextSystem::update()` - Boş loop
-- `TraitSystem::update()` - Implementasyon eksik
-
-### Mimari Tutarsızlıklar
-
-1. **RenderSystem::render()** - Incomplete (render_system.cpp 100 satırda kesilmiş)
-2. **Scene::render()** - Soyut ama implementasyon yok
-3. **EditorManager** - Tanımlanmış ama detaylar bilinmiyor
+- query cache veya daha guclu ECS gecisi
+- asset handle sistemi
+- hot reload ve async loading
+- gizmo, prefab, undo/redo, scene tooling
 
 ---
 
-## 8. TEKNİK BORÇ
+## Yol Haritasi
 
-### Memory Management
+Bu roadmap, refaktor islerini birbirine risk yaratmadan sirali sekilde uygulamak icin hazirlandi.
 
-**Sorunlar:**
-- Raw pointer'lar kullanılıyor (SDL_GPUTexture*, SDL_GPUBuffer*, vb.)
-- Manual cleanup gerekli (AssetManager::cleanup())
-- Potential memory leak'ler:
-  - CText::texture cleanup eksik
-  - Entity silinirken component cleanup yok
-  - Shader'lar manuel release gerekli
+### Faz 1: Runtime ve State Ayrisma
 
-**Öneriler:**
-- RAII wrapper'ları oluştur (SDL kaynakları için)
-- Smart pointer'lar kullan (unique_ptr, shared_ptr)
-- Destructor'larda otomatik cleanup
+Hedef: `App` icindeki fazla sorumlulugu azaltmak.
 
-### Hata Yönetimi
+Gorevler:
 
-**Sorunlar:**
-- Hata handling minimal (SDL_Log() ile logging)
-- Exception yok
-- Null pointer check'leri eksik bazı yerlerde
-- GPU device fail durumunda cascade failure
+1. Play/Edit/Pause state gecislerini tek bir runtime controller'a tasimak
+2. Scene snapshot alma ve restore sorumlulugunu panel kodundan cikarmak
+3. Scene yuklenince editor panel olusturma ile panel-scene binding davranisini ayirmak
+4. `App::run()` icindeki ana donguyu okunur alt adimlara bolmek
 
-**Öneriler:**
-- Result type (Result<T, Error>) kullan
-- Exception safety guarantee'leri tanımla
-- Graceful degradation (fallback texture'lar gibi)
+Beklenen sonuc:
 
-### Naming Convention
+- `App` daha ince bir orchestration sinifi olur
+- editor UI ile simulation state mantigi ayrisir
 
-**Tutarlılık:** Genel olarak iyi
-- Component'lar: `C` prefix (CTransform, CCamera)
-- System'ler: `System` suffix (RenderSystem, InputSystem)
-- Private member'lar: `m_` prefix (m_entities, m_gpuDevice)
+### Faz 2: Kamera Akisi ve Render Girisleri
 
-**Tutarsızlıklar:**
-- `ISystem`, `IRenderer`, `IGraphicsDevice` - Interface prefix tutarlı
-- `EntityVec`, `EntityMap` - Type alias'lar global namespace'de
+Hedef: render sisteminin aktif kamerayi temiz bir kontratla almasi.
 
-### Tekrarlayan Kod (DRY İhlalleri)
+Gorevler:
 
-1. **RenderSystem'de state tracking** - Pipeline/Material binding tekrarlanıyor
-2. **Component has() check'leri** - Birçok yerde tekrarlanan pattern
+1. Ortak bir `CameraFrameData` veya benzeri veri yapisi tanimlamak
+2. Editor kamerasi ve gameplay kamerasi icin ayni cikis modelini kullanmak
+3. `RenderSystem` icindeki override mantigini sadelestirmek
+4. Kamera secim politikasini netlestirmek: editor override, active scene camera fallback
 
-### Performans Riski Yaratan Alanlar
+Beklenen sonuc:
 
-1. **EntityManager::view()** - O(n) filtreleme her çağrıda
-   - Çözüm: Archetype caching veya sparse set
+- render sistemi daha az ozel durumla calisir
+- editor/runtime kamera davranislari daha anlasilir olur
 
-2. **RenderSystem::prepare()** - Sorting her frame
-   - Çözüm: Incremental sorting veya batch grouping
+### Faz 3: ECS ve Query Iyilestirmeleri
 
-3. **Transform hierarchy update** - Recursive, deep hierarchy'de yavaş
-   - Çözüm: Iterative update veya job system
+Hedef: mevcut ECS yapisini buyumeye biraz daha uygun hale getirmek.
 
-4. **Texture upload** - Synchronous, blocking
-   - Çözüm: Async upload queue
+Gorevler:
 
-5. **Component tuple** - Sparse set değil, boş component'lar bellek tutar
-   - Çözüm: Archetype-based storage
+1. `EntityManager::view()` icindeki gereksiz `shrink_to_fit()` kullanimini kaldirmak
+2. sik kullanilan query'ler icin reusable traversal mantigi dusunmek
+3. API semantigini netlestirmek: `addEntity()` sonrasi gorunurluk ne zaman garanti edilir
+4. dokumantasyonda ECS'in gercek dogasini acik yazmak
 
----
+Beklenen sonuc:
 
-## 9. MİMARİ ÖNERİLER
+- frame bazli gereksiz allocation azalir
+- beklenti/implementasyon uyumu artar
 
-### 1. Archetype-Based ECS (Uzun Vadeli)
+Durum:
 
-**Mevcut:** Tuple-based, sparse component storage  
-**Önerilen:** Archetype-based (SoA - Structure of Arrays)
+- `view()` icindeki gereksiz kapasite daraltma davranisi kaldirildi
+- pending entity semantigi API seviyesinde `getPendingEntities()` ile gorunur hale getirildi
+- testler deferred activation davranisiyla uyumlu hale getirildi
+- allocation uretmeyen `each<T...>(callback)` traversal API'si eklendi
+- sicak yol kullanan temel sistemler `view()` yerine `each()` kullanacak sekilde iyilestirilmeye baslandi
+- `RenderSystem` query ve scene camera resolve yollari `each()` tabanina tasindi
+- tag lookup icin `tryGetEntities()` eklendi; eksik tag sorgulari artik map'e sessiz insertion yapmadan kontrol edilebiliyor
+- Faz 3 kapsamindaki entity lifecycle ve query davranislari testlerle guvence altina alinmaya baslandi
 
-```cpp
-// Örnek: Archetype pattern
-struct Archetype {
-    std::vector<CTransform> transforms;
-    std::vector<CMesh> meshes;
-    std::vector<CCamera> cameras;
-    // ... diğer component'lar
-};
+### Faz 4: Render Dogrulugu
 
-// Avantajlar:
-// - Cache-friendly (SoA layout)
-// - Hızlı query'ler
-// - Scalable
-```
+Hedef: gorsel boruyu davranissal olarak tamamlamak.
 
-### 2. Job System (Parallelization)
+Gorevler:
 
-**Mevcut:** Sequential system update  
-**Önerilen:** Job-based parallelization
+1. aktif scene light'larini toplayip shader'a gecirmek
+2. model matrisinde `globalMatrix` kullanimini netlestirmek
+3. render batch sistemini gercek instancing'e yaklastirmak
+4. fallback material/pipeline davranislarini sertlestirmek
 
-```cpp
-// Örnek:
-SystemManager::update() {
-    // Job queue'ya sistemleri ekle
-    jobQueue.enqueue(physicsSystem);
-    jobQueue.enqueue(transformSystem);
-    jobQueue.enqueue(renderSystem);
-    
-    // Parallel execute
-    jobQueue.execute();
-}
-```
+Beklenen sonuc:
 
-### 3. Event System (Decoupling)
+- render daha dogru ve daha olceklenebilir hale gelir
 
-**Mevcut:** Direct system communication  
-**Önerilen:** Event-based messaging
+### Faz 5: Asset ve Import Katmani
 
-```cpp
-// Örnek:
-class EventBus {
-    void publish(const Event& e);
-    void subscribe(EventType, Callback);
-};
+Hedef: asset ve import kodunu derli toplu hale getirmek.
 
-// Collision event örneği
-struct CollisionEvent {
-    Entity* a;
-    Entity* b;
-};
-```
+Gorevler:
 
-### 4. Resource Handle System
+1. `GLTFLoader` implementasyonunu `.cpp` dosyasina tasimak
+2. asset lookup ve fallback mantigini daha guvenli hale getirmek
+3. asset manager naming ve ownership semantiklerini netlestirmek
 
-**Mevcut:** Raw pointer'lar  
-**Önerilen:** Handle-based resource management
+### Faz 6: Test ve Dokumantasyon
 
-```cpp
-// Örnek:
-struct MeshHandle {
-    uint32_t id;
-    uint32_t generation; // Versioning
-};
+Hedef: refaktorleri guvence altina almak.
 
-// Avantajlar:
-// - Dangling pointer'lar yok
-// - Resource reuse tracking
-```
+Gorevler:
 
-### 5. Serialization Framework
-
-**Mevcut:** Scene serializer (kısmi)  
-**Önerilen:** Reflection-based serialization
-
-```cpp
-// Örnek:
-REFLECT_COMPONENT(CTransform) {
-    REFLECT_FIELD(pos);
-    REFLECT_FIELD(velocity);
-    REFLECT_FIELD(scale);
-};
-
-// Otomatik JSON serialization
-```
+1. serializer ve hierarchy testleri eklemek
+2. trait lifecycle testleri eklemek
+3. camera secimi ve runtime state testleri eklemek
+4. README ve `docs/architecture.md` dosyalarini guncellemek
 
 ---
 
-## 10. ÖZET TABLO
+## Uygulama Stratejisi
 
-| Kategori | Durum | Notlar |
-|----------|-------|--------|
-| **ECS Core** | ✅ Tamamlanmış | Tuple-based, gecikmeli işlem, view pattern |
-| **Rendering** | ✅ Kısmi | 3D mesh, PBR, shader compilation var; 2D sprite eksik |
-| **Input** | ✅ Tamamlanmış | Keyboard, mouse, free-look kamera |
-| **Physics** | ⚠️ Minimal | Basit kinematik; collision, gravity yok |
-| **Audio** | ❌ Stub | SDL_mixer bağlı ama implementasyon yok |
-| **Scene Management** | ✅ Tamamlanmış | Entity hierarchy, serialization |
-| **Asset Pipeline** | ✅ Tamamlanmış | Mesh, texture, shader, font loading |
-| **Editor** | ✅ Kısmi | ImGui panels var; full functionality eksik |
-| **Collision** | ❌ Eksik | Component var ama sistem yok |
-| **Traits/Scripting** | ⚠️ Kısmi | Interface tanımlanmış; execution eksik |
+Refaktorleri tek seferde buyuk bir kirilimla yapmak yerine, her fazi asagidaki prensiplerle uygulamak daha dogru:
+
+- once davranisi koru, sonra sorumluluklari ayir
+- minimal degisikliklerle ilerle
+- her adimdan sonra build/test dogrulamasi yap
+- editor/runtime/render ayrimini arttir, ama mevcut kullanimlari bozma
 
 ---
 
-## 11. HEMEN YAPILABILIR İYİLEŞTİRMELER
+## Ilk Uygulanacak Isler
 
-### 1. TextSystem Implementasyonu Tamamlama
-**Neden:** CText component var ama render kodu yok  
-**Nasıl:** RenderSystem'e text rendering pass ekle, CText texture caching'i implement et  
-**Etki:** UI text rendering çalışır hale gelir
+Ilk dalgada uygulanmasi gerekenler:
 
-### 2. Collision System Oluşturma
-**Neden:** CBBox component var ama kullanılmıyor, checkCollision() helper var  
-**Nasıl:** CollisionSystem oluştur, AABB collision detection implement et, onCollision callback'lerini çalıştır  
-**Etki:** Temel collision detection ve response sistemi çalışır
+1. Runtime scene state ve snapshot akislarini tek bir merkezde toplamak
+2. `ViewportPanel` icindeki play/stop snapshot sorumlulugunu tasimak
+3. `App` icindeki scene activation ve per-frame orchestration'i alt fonksiyonlara ayirmak
+4. Kamera verisini `RenderSystem` icin daha temiz bir veri modeliyle toplamak
+5. `EntityManager::view()` icindeki gereksiz kapasite daraltma davranisini kaldirmak
 
 ---
 
-**Rapor Sonu**
+## Sonuc
+
+Motorun temeli saglam ve yonu dogru. En buyuk ihtiyac yeni ozellik eklemekten once cekirdek akislarin sadeleştirilmesi. Su an yapilacak kontrollu refaktorler, ileride editor, render ve gameplay tarafinda birikerek buyuyecek karmasikligi ciddi bicimde azaltir.

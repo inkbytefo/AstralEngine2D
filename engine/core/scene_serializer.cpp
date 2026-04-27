@@ -144,6 +144,7 @@ static CLifeSpan deserializeCLifeSpan(const json& j) {
     return comp;
 }
 
+/*
 static json serializeCText(const CText& comp) {
     json j;
     j["text"] = comp.text;
@@ -156,7 +157,9 @@ static json serializeCText(const CText& comp) {
     // Font pointer ve texture saklanmaz - runtime'da yeniden yüklenir
     return j;
 }
+*/
 
+/*
 static CText deserializeCText(const json& j) {
     CText comp;
     if (j.contains("text")) comp.text = j["text"].get<std::string>();
@@ -170,6 +173,7 @@ static CText deserializeCText(const json& j) {
     comp.has = true;
     return comp;
 }
+*/
 
 static json serializeCSprite(const CSprite& comp) {
     json j;
@@ -350,10 +354,12 @@ json SceneSerializer::serializeEntity(const std::shared_ptr<Astral::Entity>& ent
         components["CLifeSpan"] = serializeCLifeSpan(entity->get<CLifeSpan>());
     }
     
+    /*
     // CText
     if (entity->has<CText>()) {
         components["CText"] = serializeCText(entity->get<CText>());
     }
+    */
     
     // CSprite
     if (entity->has<CSprite>()) {
@@ -432,10 +438,12 @@ std::shared_ptr<Astral::Entity> SceneSerializer::deserializeEntity(
         entity->add<CLifeSpan>(deserializeCLifeSpan(components["CLifeSpan"]));
     }
     
-    // CText
+    /*
+    // CText - Temporarily disabled
     if (components.contains("CText")) {
         entity->add<CText>(deserializeCText(components["CText"]));
     }
+    */
     
     // CSprite
     if (components.contains("CSprite")) {

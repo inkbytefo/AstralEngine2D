@@ -12,12 +12,12 @@ namespace Astral {
 class CameraSystem : public ISystem {
 public:
     void update(EntityManager& entityManager, float deltaTime) override {
-        for (auto& entity : entityManager.view<CCamera, CFreeLook, CTransform>()) {
+        entityManager.each<CCamera, CFreeLook, CTransform>([&](const auto& entity) {
             auto& camera = entity->get<CCamera>();
             auto& look = entity->get<CFreeLook>();
             auto& transform = entity->get<CTransform>();
 
-            if (!camera.isActive) continue;
+            if (!camera.isActive) return;
 
             // 1. ROTASYON HESAPLAMA (Z-Up Standartı)
             // Yaw: Z ekseni etrafında dönme, Pitch: Y ekseni etrafında (yukarı/aşağı) bakma
@@ -44,7 +44,7 @@ public:
 
             // 3. VIEW MATRIX GÜNCELLEME
             camera.view = glm::lookAt(transform.pos, transform.pos + front, up);
-        }
+        });
     }
 
     int32_t getPriority() const override { return 20; }

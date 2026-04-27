@@ -36,7 +36,7 @@ public:
     static std::shared_ptr<Astral::Entity> loadGLTF(
         const std::string& filepath,
         Astral::EntityManager& entityManager,
-        AssetManager& assetMgr,
+        IAssetRegistry& assetRegistry,
         const std::string& materialPrefix = "gltf_mat_",
         std::shared_ptr<Astral::Entity> rootEntity = nullptr)
     {
@@ -69,10 +69,10 @@ public:
         }
 
         // 1. Materyalleri yükle (BaseDir ile birlikte)
-        loadMaterials(data, assetMgr, materialPrefix, baseDir);
+        loadMaterials(data, assetRegistry, materialPrefix, baseDir);
 
         // 2. Mesh'leri yükle (Her primitive ayrı mesh olarak)
-        loadMeshes(data, assetMgr, filepath);
+        loadMeshes(data, assetRegistry, filepath);
 
         // 3. Scene Graph'i oluştur
         if (!rootEntity) {
@@ -89,8 +89,8 @@ public:
     }
 
 private:
-    // Materyalleri AssetManager'a yükle
-    static void loadMaterials(cgltf_data* data, AssetManager& assetMgr, const std::string& prefix, const std::string& baseDir) {
+    // Materyalleri AssetRegistry'ye yükle
+    static void loadMaterials(cgltf_data* data, IAssetRegistry& assetRegistry, const std::string& prefix, const std::string& baseDir) {
         for (size_t i = 0; i < data->materials_count; ++i) {
             cgltf_material* mat = &data->materials[i];
             std::string matName = prefix + (mat->name ? mat->name : ("mat_" + std::to_string(i)));
@@ -105,7 +105,7 @@ private:
                 if (img && img->uri) {
                     std::string texPath = baseDir + img->uri;
                     albedoTexName = matName + "_albedo";
-                    assetMgr.uploadTexture(albedoTexName, texPath);
+                    assetRegistry.getTextureManager().uploadTexture(albedoTexName, texPath);
                 }
             }
 
@@ -115,7 +115,7 @@ private:
                 if (img && img->uri) {
                     std::string texPath = baseDir + img->uri;
                     normalTexName = matName + "_normal";
-                    assetMgr.uploadTexture(normalTexName, texPath);
+                    assetRegistry.getTextureManager().uploadTexture(normalTexName, texPath);
                 }
             }
 
@@ -125,7 +125,7 @@ private:
                 if (img && img->uri) {
                     std::string texPath = baseDir + img->uri;
                     mrTexName = matName + "_mr";
-                    assetMgr.uploadTexture(mrTexName, texPath);
+                    assetRegistry.getTextureManager().uploadTexture(mrTexName, texPath);
                 }
             }
 
@@ -147,14 +147,14 @@ private:
             }
 
             // Material oluştur
-            assetMgr.createMaterial(matName, "pbr_pipeline", albedoTexName, normalTexName, mrTexName, baseColor, metallic, roughness);
+            assetRegistry.getMaterialManager().createMaterial(matName, "pbr_pipeline", albedoTexName, normalTexName, mrTexName, baseColor, metallic, roughness);
             
             SDL_Log("  Material: %s (Textures Loaded)", matName.c_str());
         }
     }
 
     // Mesh'leri Mega-Buffer'a yükle
-    static void loadMeshes(cgltf_data* data, AssetManager& assetMgr, const std::string& filepath) {
+    static void loadMeshes(cgltf_data* data, IAssetRegistry& assetRegistry, const std::string& filepath) {
         for (size_t meshIdx = 0; meshIdx < data->meshes_count; ++meshIdx) {
             cgltf_mesh* mesh = &data->meshes[meshIdx];
             
@@ -179,7 +179,7 @@ private:
                 meshName += "prim_" + std::to_string(primIdx);
 
                 // Mega-Buffer'a yükle
-                assetMgr.uploadMesh(meshName, vertices, indices);
+                assetRegistry.getMeshManager().uploadMesh(meshName, vertices, indices);
                 
                 SDL_Log("  Mesh: %s (V:%zu I:%zu)", meshName.c_str(), vertices.size(), indices.size());
             }

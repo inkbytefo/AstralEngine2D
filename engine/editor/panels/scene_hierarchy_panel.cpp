@@ -1,9 +1,12 @@
 #include "scene_hierarchy_panel.h"
 #include "imgui.h"
+#include "imgui_internal.h"
 #include "core/entity_manager.h"
 #include "ecs/entity.h"
 #include "ecs/components.h"
 #include <cstdint>
+#include <string>
+#include <algorithm>
 
 SceneHierarchyPanel::SceneHierarchyPanel(Astral::EntityManager* entityManager)
     : m_entityManager(entityManager)
@@ -14,6 +17,24 @@ void SceneHierarchyPanel::drawEntityNode(std::shared_ptr<Astral::Entity> entity)
 {
     if (!entity) return;
 
+    // Filter check
+    if (m_filterBuffer[0] != '\0')
+    {
+        std::string tag = entity->tag();
+        std::string filter = m_filterBuffer;
+        std::transform(tag.begin(), tag.end(), tag.begin(), ::tolower);
+        std::transform(filter.begin(), filter.end(), filter.begin(), ::tolower);
+        if (tag.find(filter) == std::string::npos) return;
+    }
+
+    // Determine Icon/Prefix
+    const char* icon = "  ";
+    ImVec4 iconColor = ImVec4(1, 1, 1, 1);
+    
+    if (entity->has<CCamera>()) { icon = "[C]"; iconColor = ImVec4(0.3f, 0.7f, 1.0f, 1.0f); }
+    else if (entity->has<CLight>()) { icon = "[L]"; iconColor = ImVec4(1.0f, 0.9f, 0.3f, 1.0f); }
+    else if (entity->has<CMesh>()) { icon = "[M]"; iconColor = ImVec4(0.7f, 0.7f, 0.7f, 1.0f); }
+
     // Check if entity has children
     bool hasChildren = false;
     if (entity->has<CTransform>())
@@ -23,31 +44,56 @@ void SceneHierarchyPanel::drawEntityNode(std::shared_ptr<Astral::Entity> entity)
     }
 
     ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
-    if (!hasChildren)
-    {
-        flags |= ImGuiTreeNodeFlags_Leaf;
-    }
-    if (m_selectedEntity == entity)
-    {
-        flags |= ImGuiTreeNodeFlags_Selected;
-    }
+    if (!hasChildren) flags |= ImGuiTreeNodeFlags_Leaf;
+    if (m_selectedEntity == entity) flags |= ImGuiTreeNodeFlags_Selected;
 
-    bool opened = ImGui::TreeNodeEx((void*)(uintptr_t)entity->id(), flags, "%s", entity->tag().c_str());
+    ImGui::PushStyleColor(ImGuiCol_Text, iconColor);
+    bool opened = ImGui::TreeNodeEx((void*)(uintptr_t)entity->id(), flags, "%s %s", icon, entity->tag().c_str());
+    ImGui::PopStyleColor();
 
     // Handle selection
     if (ImGui::IsItemClicked())
     {
         m_selectedEntity = entity;
-        if (m_onSelectionChanged)
-        {
-            m_onSelectionChanged(m_selectedEntity);
-        }
+        if (m_onSelectionChanged) m_onSelectionChanged(m_selectedEntity);
     }
 
-    // Handle right-click context menu
-    if (ImGui::IsItemClicked(ImGuiMouseButton_Right))
+    // Context Menu
+    if (ImGui::BeginPopupContextItem())
     {
         m_contextMenuEntity = entity;
+        
+        if (ImGui::MenuItem("Rename"))
+        {
+            m_renameEntity = entity;
+            strncpy(m_renameBuffer, entity->tag().c_str(), sizeof(m_renameBuffer));
+        }
+
+        if (ImGui::MenuItem("Duplicate"))
+        {
+            auto newEntity = m_entityManager->addEntity(entity->tag() + "_Copy");
+            
+            // Copy Components
+            if (entity->has<CTransform>()) {
+                auto& src = entity->get<CTransform>();
+                auto& dst = newEntity->add<CTransform>(src.pos);
+                dst.rotation = src.rotation; dst.scale = src.scale;
+            }
+            if (entity->has<CCamera>()) { newEntity->add<CCamera>(entity->get<CCamera>()); }
+            if (entity->has<CLight>()) { newEntity->add<CLight>(entity->get<CLight>()); }
+            if (entity->has<CMesh>()) { newEntity->add<CMesh>(entity->get<CMesh>()); }
+            if (entity->has<CFreeLook>()) { newEntity->add<CFreeLook>(entity->get<CFreeLook>()); }
+        }
+
+        ImGui::Separator();
+
+        if (ImGui::MenuItem("Delete", "Del"))
+        {
+            entity->destroy();
+            if (m_selectedEntity == entity) m_selectedEntity = nullptr;
+        }
+
+        ImGui::EndPopup();
     }
 
     // Draw children
@@ -65,60 +111,21 @@ void SceneHierarchyPanel::drawEntityNode(std::shared_ptr<Astral::Entity> entity)
     }
 }
 
-void SceneHierarchyPanel::drawContextMenu(std::shared_ptr<Astral::Entity> entity)
-{
-    if (!entity) return;
-
-    if (ImGui::BeginPopupContextItem())
-    {
-        if (ImGui::MenuItem("Delete"))
-        {
-            entity->destroy();
-            if (m_selectedEntity == entity) m_selectedEntity = nullptr;
-        }
-
-        if (ImGui::MenuItem("Duplicate"))
-        {
-            // Simple duplication logic
-            auto newEntity = m_entityManager->addEntity(entity->tag() + "_Copy");
-            if (entity->has<CTransform>()) {
-                auto& t = entity->get<CTransform>();
-                auto& nt = newEntity->add<CTransform>(t.pos, t.velocity);
-                nt.rotation = t.rotation;
-                nt.scale = t.scale;
-            }
-        }
-
-        ImGui::Separator();
-
-        if (ImGui::MenuItem("Create Empty Child"))
-        {
-            auto child = m_entityManager->addEntity("Empty");
-            auto& ct = child->add<CTransform>();
-            ct.parent = entity;
-            if (entity->has<CTransform>()) {
-                entity->get<CTransform>().children.push_back(child);
-            }
-        }
-
-        ImGui::EndPopup();
-    }
-}
-
 void SceneHierarchyPanel::draw()
 {
     ImGui::Begin("Hierarchy");
 
+    // Search Box
+    ImGui::PushItemWidth(-1);
+    if (ImGui::InputTextWithHint("##Filter", "Search...", m_filterBuffer, sizeof(m_filterBuffer))) {}
+    ImGui::PopItemWidth();
+    
+    ImGui::Spacing();
+
     if (m_entityManager)
     {
-        // Add Entity button
-        if (ImGui::Button("Add Entity", ImVec2(-1, 0)))
-        {
-            m_entityManager->addEntity("New Entity")->add<CTransform>();
-        }
-        ImGui::Separator();
-
-        // Draw root entities (entities without parent)
+        // Draw root entities
+        ImGui::BeginChild("HierarchyScroll");
         for (auto& entity : m_entityManager->getEntities())
         {
             if (!entity->isActive()) continue;
@@ -126,10 +133,7 @@ void SceneHierarchyPanel::draw()
             if (entity->has<CTransform>())
             {
                 auto& transform = entity->get<CTransform>();
-                if (transform.parent.expired())
-                {
-                    drawEntityNode(entity);
-                }
+                if (transform.parent.expired()) drawEntityNode(entity);
             }
             else
             {
@@ -151,10 +155,31 @@ void SceneHierarchyPanel::draw()
         if (ImGui::IsMouseDown(0) && ImGui::IsWindowHovered() && !ImGui::IsAnyItemHovered())
         {
             m_selectedEntity = nullptr;
-            if (m_onSelectionChanged)
+            if (m_onSelectionChanged) m_onSelectionChanged(nullptr);
+        }
+        ImGui::EndChild();
+    }
+
+    // Rename Popup
+    if (m_renameEntity)
+    {
+        ImGui::OpenPopup("Rename Entity");
+        if (ImGui::BeginPopupModal("Rename Entity", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+        {
+            ImGui::InputText("New Name", m_renameBuffer, sizeof(m_renameBuffer));
+            if (ImGui::Button("OK", ImVec2(120, 0)) || ImGui::IsKeyPressed(ImGuiKey_Enter))
             {
-                m_onSelectionChanged(nullptr);
+                m_renameEntity->setTag(m_renameBuffer);
+                m_renameEntity = nullptr;
+                ImGui::CloseCurrentPopup();
             }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel", ImVec2(120, 0)))
+            {
+                m_renameEntity = nullptr;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
         }
     }
 

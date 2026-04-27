@@ -52,6 +52,17 @@ EntityVec& EntityManager::getEntities()
 	return m_entities;
 }
 
+const EntityVec& EntityManager::getPendingEntities() const
+{
+	return m_toAdd;
+}
+
+const EntityVec* EntityManager::tryGetEntities(const std::string& tag) const
+{
+	auto it = m_entityMap.find(tag);
+	return (it != m_entityMap.end()) ? &it->second : nullptr;
+}
+
 EntityVec& EntityManager::getEntities(const std::string& tag)
 {
 	// İlgili etikete ait varlık listesini döndürür.

@@ -117,12 +117,17 @@ public:
     bool getEditorCameraMatrices(glm::mat4& view, glm::mat4& proj, glm::vec3& pos);
 
     /**
+     * @brief Clear all selection state.
+     */
+    void clearSelection() { deselectEntity(); }
+
+    /**
      * @brief Get the SDL window associated with the editor.
      */
     SDL_Window* getWindow() const { return m_window; }
 
 private:
-    void setupDockspace();
+    void setupDockspace(Astral::EntityManager& entityManager);
 
 private:
     std::unordered_map<std::string, std::unique_ptr<IEditorPanel>> m_panels;

@@ -14,6 +14,26 @@ find_package(SDL3_ttf REQUIRED)
 find_package(SDL3_image REQUIRED)
 find_package(SDL3_mixer REQUIRED)
 
+# Google Test for unit testing
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+)
+# For Windows: Prevent overriding the parent project's compiler/linker on Windows
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+# Enable Google Mock
+set(BUILD_GMOCK ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
+
+# Google Benchmark for performance testing
+FetchContent_Declare(
+  googlebenchmark
+  URL https://github.com/google/benchmark/archive/v1.8.3.zip
+)
+set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googlebenchmark)
+
 
 # Kaynak dosyaları listesi (Yeni hiyerarşiye göre)
 set(SOURCES
@@ -25,6 +45,7 @@ set(SOURCES
     "engine/core/app.cpp"
     "engine/core/entity_manager.h"
     "engine/core/entity_manager.cpp"
+    "engine/core/error_handling.cpp"
     "engine/core/gltf_loader.cpp"
     "engine/core/scene_serializer.h"
     "engine/core/scene_serializer.cpp"
@@ -175,4 +196,60 @@ add_custom_command(TARGET Astral POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
     "${CMAKE_CURRENT_SOURCE_DIR}/assets"
     "$<TARGET_FILE_DIR:Astral>/assets"
+)
+
+# Unit Tests
+enable_testing()
+
+set(TEST_SOURCES
+    "tests/test_framework.h"
+    "tests/entity_tests.cpp"
+    "engine/core/entity_manager.cpp"
+)
+
+add_executable(AstralTests ${TEST_SOURCES})
+set_property(TARGET AstralTests PROPERTY CXX_STANDARD 20)
+
+target_include_directories(AstralTests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    "engine"
+    "games/sandbox"
+    "engine/vendor/glm"
+    ${SDL3_INCLUDE_DIRS}
+)
+
+target_link_libraries(AstralTests PRIVATE
+    GTest::gtest_main
+    SDL3::SDL3
+    SDL3_ttf::SDL3_ttf
+    SDL3_image::SDL3_image
+    SDL3_mixer::SDL3_mixer
+)
+
+include(GoogleTest)
+gtest_discover_tests(AstralTests)
+
+# Benchmarks
+set(BENCHMARK_SOURCES
+    "benchmarks/engine_benchmarks.cpp"
+    "engine/core/entity_manager.cpp"
+)
+
+add_executable(AstralBenchmarks ${BENCHMARK_SOURCES})
+set_property(TARGET AstralBenchmarks PROPERTY CXX_STANDARD 20)
+
+target_include_directories(AstralBenchmarks PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    "engine"
+    "games/sandbox"
+    "engine/vendor/glm"
+    ${SDL3_INCLUDE_DIRS}
+)
+
+target_link_libraries(AstralBenchmarks PRIVATE
+    benchmark::benchmark_main
+    SDL3::SDL3
+    SDL3_ttf::SDL3_ttf
+    SDL3_image::SDL3_image
+    SDL3_mixer::SDL3_mixer
 )

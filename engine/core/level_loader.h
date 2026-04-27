@@ -7,7 +7,7 @@
 
 class LevelLoader {
 public:
-    static void loadLevel(EntityManager& entityManager, AssetManager& assetMgr, const std::string& filePath) {
+    static void loadLevel(EntityManager& entityManager, IAssetRegistry& assetRegistry, const std::string& filePath) {
         std::ifstream file(filePath);
         if (!file.is_open()) {
             SDL_Log("Level dosyasi bulunamadi: %s", filePath.c_str());
@@ -86,28 +86,30 @@ public:
                     if (!e->has<CInput>()) e->add<CInput>();
                 }
 
-                // Yeni Eklenen CText Desteği!
+                // CText desteği temporarily disabled
+                /*
                 if (components.contains("CText")) {
                     auto& c = components["CText"];
                     std::string fontId = c["font_id"];
                     std::string text = c["text"];
-                    SDL_Color color = { 
-                        c["color"][0].get<uint8_t>(), 
-                        c["color"][1].get<uint8_t>(), 
-                        c["color"][2].get<uint8_t>(), 
-                        c["color"][3].get<uint8_t>() 
+                    SDL_Color color = {
+                        c["color"][0].get<uint8_t>(),
+                        c["color"][1].get<uint8_t>(),
+                        c["color"][2].get<uint8_t>(),
+                        c["color"][3].get<uint8_t>()
                     };
-                    
+
                     if (e->has<CText>()) {
                         auto& ctext = e->get<CText>();
-                        ctext.font = assetMgr.getFont(fontId);
+                        ctext.font = assetRegistry.getFontManager().getFont(fontId);
                         ctext.color = color;
                         ctext.setText(text);
                         ctext.needsUpdate = true;
                     } else {
-                        e->add<CText>(text, assetMgr.getFont(fontId), color);
+                        e->add<CText>(text, assetRegistry.getFontManager().getFont(fontId), color);
                     }
                 }
+                */
             }
         }
     }

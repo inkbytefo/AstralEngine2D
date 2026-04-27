@@ -120,7 +120,7 @@ void SandboxScene::createCubeMesh()
         20, 21, 22, 22, 23, 20  // Sol
     };
 
-    m_app->getAssetManager().uploadMesh("cube", vertices, indices);
+    m_app->getAssetManager().getMeshManager().uploadMesh("cube", vertices, indices);
 }
 
 void SandboxScene::loadShaders()
@@ -159,8 +159,8 @@ void SandboxScene::loadShaders()
     }
 
     // Shader'ları AssetManager'a ekle (cleanup için)
-    m_app->getAssetManager().addShader(vertShader);
-    m_app->getAssetManager().addShader(fragShader);
+    m_app->getAssetManager().getShaderManager().addShader(vertShader);
+    m_app->getAssetManager().getShaderManager().addShader(fragShader);
 
     // Swapchain formatını al
     SDL_GPUTextureFormat swapchainFormat = SDL_GetGPUSwapchainTextureFormat(
@@ -169,7 +169,7 @@ void SandboxScene::loadShaders()
     );
 
     // PBR Pipeline oluştur (Offscreen Doku formatına uygun: R8G8B8A8_UNORM)
-    m_app->getAssetManager().createPipeline(
+    m_app->getAssetManager().getPipelineManager().createPipeline(
         "pbr_pipeline",
         vertShader,
         fragShader,
@@ -187,10 +187,10 @@ void SandboxScene::createMaterials()
     AssetManager& assetMgr = m_app->getAssetManager();
 
     // box.png yükle (assets/textures/ klasörüne atılmış olmalı)
-    assetMgr.uploadTexture("box_tex", "assets/textures/box.png");
+    assetMgr.getTextureManager().uploadTexture("box_tex", "assets/textures/box.png");
 
     // PBR Material yarat (Albedo texture var, Normal/MR texture yok. Metallic: 0.1, Roughness: 0.8 ahşap kutu için uygun)
-    assetMgr.createMaterial("box_material", "pbr_pipeline", "box_tex", "", "", glm::vec4(1.0f), 0.1f, 0.8f);
+    assetMgr.getMaterialManager().createMaterial("box_material", "pbr_pipeline", "box_tex", "", "", glm::vec4(1.0f), 0.1f, 0.8f);
 
     SDL_Log("PBR Material 'box_material' oluşturuldu!");
 }
@@ -200,13 +200,13 @@ void SandboxScene::loadGLTFModels()
     using namespace Astral;
     
     // Pipeline'ın hazır olduğundan emin ol
-    if (!m_app->getAssetManager().getPipeline("pbr_pipeline")) {
+    if (!m_app->getAssetManager().getPipelineManager().getPipeline("pbr_pipeline")) {
         SDL_Log("UYARI: PBR Pipeline henüz hazır değil, GLTF yükleme atlanıyor");
         return;
     }
 
     // Default material oluştur (GLTF loader bunu kullanacak)
-    m_app->getAssetManager().createMaterial("default", "pbr_pipeline", "", "", "", 
+    m_app->getAssetManager().getMaterialManager().createMaterial("default", "pbr_pipeline", "", "", "",
         glm::vec4(0.8f, 0.8f, 0.8f, 1.0f), 0.0f, 0.5f);
 
     // Hover Bike modelini yükle
