@@ -13,7 +13,7 @@ public:
         }
     }
 
-    int32_t getPriority() const override { return 10; }
+    int32_t getPriority() const override { return -10; }
     const char* getName() const override { return "PhysicsSystem"; }
 };
 

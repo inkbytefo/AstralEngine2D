@@ -33,17 +33,15 @@ glm::mat4 EditorCamera::getProjectionMatrix(float aspectRatio) const {
     return glm::perspective(glm::radians(fov), aspectRatio, nearPlane, farPlane);
 }
 
-void EditorCamera::update(float deltaTime, bool isHovered) {
-    if (!isHovered) return;
+void EditorCamera::update(float deltaTime, bool isActive) {
+    if (!isActive) return;
 
     ImGuiIO& io = ImGui::GetIO();
     
-    // Right-click look
-    if (ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
-        yaw += io.MouseDelta.x * mouseSensitivity;
-        pitch -= io.MouseDelta.y * mouseSensitivity;
-        pitch = glm::clamp(pitch, -89.0f, 89.0f);
-    }
+    // Rotation (Mouse Delta)
+    yaw += io.MouseDelta.x * mouseSensitivity;
+    pitch -= io.MouseDelta.y * mouseSensitivity;
+    pitch = glm::clamp(pitch, -89.0f, 89.0f);
 
     // WASD Movement
     glm::vec3 front;
@@ -298,9 +296,36 @@ void ViewportPanel::draw()
 
     handleKeyboardShortcuts();
     
-    // Update Editor Camera
+    // Update Editor Camera State Machine
     bool isViewportHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows);
-    m_editorCamera.update(ImGui::GetIO().DeltaTime, isViewportHovered);
+    
+    // --- GIZMO SYNC FIX ---
+    // We capture the matrices BEFORE updating the camera for the next frame.
+    // This ensures ImGuizmo uses the same matrices that were used to render the scene texture.
+    float aspectRatio = (m_viewportHeight > 0) ? (float)m_viewportWidth / (float)m_viewportHeight : 1.0f;
+    glm::mat4 view = m_editorCamera.getViewMatrix();
+    glm::mat4 projection = m_editorCamera.getProjectionMatrix(aspectRatio);
+
+    // Start camera rotation if right-clicked while hovered and NOT using gizmos
+    if (isViewportHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right) && !ImGuizmo::IsUsing())
+    {
+        m_isCameraActive = true;
+        if (m_editorManager && m_editorManager->getWindow()) {
+            SDL_SetWindowRelativeMouseMode(m_editorManager->getWindow(), true);
+        }
+    }
+
+    // Stop camera rotation when right-click is released
+    if (m_isCameraActive && !ImGui::IsMouseDown(ImGuiMouseButton_Right))
+    {
+        m_isCameraActive = false;
+        if (m_editorManager && m_editorManager->getWindow()) {
+            SDL_SetWindowRelativeMouseMode(m_editorManager->getWindow(), false);
+        }
+    }
+
+    // Now we can update the camera for the NEXT frame
+    m_editorCamera.update(ImGui::GetIO().DeltaTime, m_isCameraActive);
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     
@@ -310,7 +335,6 @@ void ViewportPanel::draw()
     // Minimum boyut kontrolü - çok küçük viewport'ları engelle
     if (viewportPanelSize.x < 64.0f) viewportPanelSize.x = 64.0f;
     if (viewportPanelSize.y < 64.0f) viewportPanelSize.y = 64.0f;
-    
     if (viewportPanelSize.x > 0 && viewportPanelSize.y > 0)
     {
         uint32_t w = (uint32_t)viewportPanelSize.x;
@@ -321,6 +345,7 @@ void ViewportPanel::draw()
             m_viewportWidth = w;
             m_viewportHeight = h;
             m_renderer->resizeViewport(w, h);
+            m_sceneTexture = m_renderer->getSceneTexture(); // Update local pointer immediately
             
             // Update camera projection to match new aspect ratio
             if (m_entityManager)
@@ -374,56 +399,43 @@ void ViewportPanel::draw()
 
     // 3. ImGuizmo Setup
     ImGuizmo::SetOrthographic(false);
+    
+    // Vulkan'da null texture crash'ini önlemek için bir doku (font atlas) push'luyoruz
+    // Eğer font texture henüz hazır değilse (NULL), push yapmıyoruz.
+    bool pushedFont = false;
+    if (ImGui::GetIO().Fonts->IsBuilt()) {
+        ImGui::GetWindowDrawList()->PushTextureID(ImGui::GetIO().Fonts->TexID);
+        pushedFont = true;
+    }
+
     ImGuizmo::SetDrawlist();
     ImGuizmo::SetRect(viewportPos.x, viewportPos.y, viewportPanelSize.x, viewportPanelSize.y);
 
-    // 4. Find Active Camera
-    glm::mat4 view(1.0f);
-    glm::mat4 projection(1.0f);
-    std::shared_ptr<Astral::Entity> activeCameraEntity = nullptr;
-    float aspectRatio = viewportPanelSize.x / viewportPanelSize.y;
+    // 4. Matrix ready for ImGuizmo (Captured above)
+    bool cameraReady = true;
 
-    if (m_editorManager->getSceneState() == SceneState::Edit)
+    // 5. Orientation Gizmo
+    if (cameraReady)
     {
-        view = m_editorCamera.getViewMatrix();
-        projection = m_editorCamera.getProjectionMatrix(aspectRatio);
-        
-        // Render sistemine kamera override'ı geç
-        // Not: RenderSystem'e erişmek için EditorManager üzerinden veya başka bir yoldan geçebiliriz.
-        // Ama RenderSystem zaten App içinde güncelleniyor. 
-        // ViewportPanel her frame RenderSystem'e override set etmeli.
-    }
-    else if (m_entityManager)
-    {
-        for (auto& entity : m_entityManager->getEntities())
-        {
-            if (entity->has<CCamera>() && entity->has<CTransform>())
-            {
-                auto& cam = entity->get<CCamera>();
-                if (cam.isActive)
-                {
-                    view = cam.view;
-                    projection = cam.projection;
-                    activeCameraEntity = entity;
-                    break;
-                }
-            }
-        }
-    }
-
-    if (activeCameraEntity)
-    {
-        // Draw View Manipulator (Orientation Gizmo like Blender/Unreal)
         float viewManipSize = 128.f;
         float padding = 10.f;
         ImVec2 viewManipPos = ImVec2(viewportPos.x + viewportPanelSize.x - viewManipSize - padding, viewportPos.y + padding);
         ImGuizmo::ViewManipulate(glm::value_ptr(view), 8.0f, viewManipPos, ImVec2(viewManipSize, viewManipSize), 0x00000000);
     }
 
-    // 5. Gizmo Manipulation
-    if (activeCameraEntity && m_selectedEntity && m_selectedEntity->has<CTransform>())
+    // 6. Gizmo Manipulation & Selection Highlight
+    if (cameraReady && m_selectedEntity && m_selectedEntity->has<CTransform>())
     {
         auto& transform = m_selectedEntity->get<CTransform>();
+        
+        // --- SELECTION HIGHLIGHT (Bounding Box) ---
+        glm::mat4 highlightMatrix = transform.globalMatrix;
+        float cubeSize = 1.0f;
+        if (m_selectedEntity->has<CMesh>()) cubeSize = 1.1f;
+        
+        ImGuizmo::DrawCubes(glm::value_ptr(view), glm::value_ptr(projection), glm::value_ptr(highlightMatrix), 1);
+        
+        // --- GIZMO MANIPULATION ---
         glm::mat4 globalMatrix = transform.globalMatrix;
 
         if (ImGuizmo::Manipulate(glm::value_ptr(view), glm::value_ptr(projection), 
@@ -457,6 +469,9 @@ void ViewportPanel::draw()
         }
     }
 
+    if (pushedFont) {
+        ImGui::GetWindowDrawList()->PopTextureID();
+    }
     ImGui::End();
     ImGui::PopStyleVar();
 }

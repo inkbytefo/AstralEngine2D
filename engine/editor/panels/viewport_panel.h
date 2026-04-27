@@ -106,4 +106,5 @@ private:
 
     // Editor Camera
     EditorCamera m_editorCamera;
+    bool m_isCameraActive{ false };
 };

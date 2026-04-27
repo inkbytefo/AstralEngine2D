@@ -8,6 +8,7 @@
 #include <memory>
 #include "../math/vertex.h"
 #include "shader_loader.h"
+#include "gpu_resource.h"
 
 namespace Astral {
 
@@ -61,13 +62,13 @@ private:
     // Kaynak Haritaları (Resource Maps)
     std::map<std::string, std::unique_ptr<GPUMesh>> m_meshes;
     std::map<std::string, std::unique_ptr<Material>> m_materials;
-    std::map<std::string, SDL_GPUGraphicsPipeline*> m_pipelines;
-    std::map<std::string, SDL_GPUTexture*> m_textures;
-    std::map<std::string, TTF_Font*> m_fonts;
+    std::map<std::string, GpuPipeline> m_pipelines;
+    std::map<std::string, GpuTexture> m_textures;
+    std::map<std::string, GpuFont> m_fonts;
     
-    // Temizlik Listeleri (Cleanup Lists)
-    std::vector<SDL_GPUShader*> m_shaders;
-    std::vector<SDL_GPUSampler*> m_samplers;
+    // Temizlik Listeleri (Cleanup Lists) - GpuResource otomatik cleanup yapacak
+    std::vector<GpuShader> m_shaders;
+    std::vector<GpuSampler> m_samplers;
     
     // MEGA-BUFFER (Bindless Architecture) Değişkenleri
     SDL_GPUBuffer* m_megaVertexBuffer{ nullptr };
@@ -77,10 +78,10 @@ private:
     const uint32_t MEGA_VERTEX_CAPACITY{ 50 * 1024 * 1024 }; // 50 MB
     const uint32_t MEGA_INDEX_CAPACITY{ 20 * 1024 * 1024 };  // 20 MB
 
-    // Varsayılan dokular (Fallback textures)
-    SDL_GPUTexture* m_whiteTexture{ nullptr };
-    SDL_GPUTexture* m_blackTexture{ nullptr };
-    SDL_GPUTexture* m_defaultNormalTexture{ nullptr };
+    // Varsayılan dokular (Fallback textures) - RAII managed
+    GpuTexture m_whiteTexture;
+    GpuTexture m_blackTexture;
+    GpuTexture m_defaultNormalTexture;
 
 public:
     AssetManager() = default;
@@ -120,7 +121,7 @@ private:
         SDL_Log("Varsayılan (Fallback) dokular oluşturuldu.");
     }
 
-    SDL_GPUTexture* create1x1Texture(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    GpuTexture create1x1Texture(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
         SDL_GPUTextureCreateInfo texInfo = {};
         texInfo.type = SDL_GPU_TEXTURETYPE_2D;
         texInfo.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
@@ -163,12 +164,12 @@ private:
         SDL_WaitForGPUIdle(m_gpuDevice);
         SDL_ReleaseGPUTransferBuffer(m_gpuDevice, transferBuffer);
 
-        return texture;
+        return GpuTexture(texture, m_gpuDevice);
     }
 public:
-    SDL_GPUTexture* getWhiteTexture() const { return m_whiteTexture; }
-    SDL_GPUTexture* getBlackTexture() const { return m_blackTexture; }
-    SDL_GPUTexture* getNormalTexture() const { return m_defaultNormalTexture; }
+    SDL_GPUTexture* getWhiteTexture() const { return m_whiteTexture.get(); }
+    SDL_GPUTexture* getBlackTexture() const { return m_blackTexture.get(); }
+    SDL_GPUTexture* getNormalTexture() const { return m_defaultNormalTexture.get(); }
     // ============================================================================
     // MESH UPLOAD - Staging Buffer ile Mega-Buffer'a Append
     // ============================================================================
@@ -258,13 +259,16 @@ public:
         
         SDL_GPUShader* shader = ShaderLoader::loadShaderFromFile(m_gpuDevice, path.c_str(), stage);
         if (shader) {
-            m_shaders.push_back(shader);
+            m_shaders.push_back(GpuShader(shader, m_gpuDevice));
+            return shader;
         }
-        return shader;
+        return nullptr;
     }
 
     void addShader(SDL_GPUShader* shader) {
-        if (shader) m_shaders.push_back(shader);
+        if (shader) {
+            m_shaders.push_back(GpuShader(shader, m_gpuDevice));
+        }
     }
 
     GPUMesh* getMesh(const std::string& name) {
@@ -344,7 +348,7 @@ public:
         SDL_GPUGraphicsPipeline* pipeline = SDL_CreateGPUGraphicsPipeline(m_gpuDevice, &pipelineCreateInfo);
 
         if (pipeline) {
-            m_pipelines[name] = pipeline;
+            m_pipelines[name] = GpuPipeline(pipeline, m_gpuDevice);
             SDL_Log("AssetManager: Pipeline '%s' oluşturuldu", name.c_str());
         }
 
@@ -353,7 +357,7 @@ public:
 
     SDL_GPUGraphicsPipeline* getPipeline(const std::string& name) {
         auto it = m_pipelines.find(name);
-        return (it != m_pipelines.end()) ? it->second : nullptr;
+        return (it != m_pipelines.end()) ? it->second.get() : nullptr;
     }
 
     // ============================================================================
@@ -363,7 +367,7 @@ public:
     SDL_GPUTexture* uploadTexture(const std::string& name, const std::string& filepath) {
         // Eğer aynı isimle zaten yüklenmişse, tekrar yükleme
         if (m_textures.find(name) != m_textures.end()) {
-            return m_textures[name];
+            return m_textures[name].get();
         }
 
         if (!m_gpuDevice) return nullptr;
@@ -423,14 +427,14 @@ public:
         SDL_WaitForGPUIdle(m_gpuDevice);
         SDL_ReleaseGPUTransferBuffer(m_gpuDevice, transferBuffer);
 
-        m_textures[name] = texture;
+        m_textures[name] = GpuTexture(texture, m_gpuDevice);
         SDL_Log("Texture yüklendi: %s (%dx%d)", name.c_str(), texInfo.width, texInfo.height);
         return texture;
     }
 
     SDL_GPUTexture* getTexture(const std::string& name) {
         auto it = m_textures.find(name);
-        return (it != m_textures.end()) ? it->second : nullptr;
+        return (it != m_textures.end()) ? it->second.get() : nullptr;
     }
 
     // ============================================================================
@@ -447,8 +451,11 @@ public:
         samplerInfo.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
         
         SDL_GPUSampler* sampler = SDL_CreateGPUSampler(m_gpuDevice, &samplerInfo);
-        if (sampler) m_samplers.push_back(sampler);
-        return sampler;
+        if (sampler) {
+            m_samplers.push_back(GpuSampler(sampler, m_gpuDevice));
+            return sampler;
+        }
+        return nullptr;
     }
 
     // ============================================================================
@@ -498,13 +505,13 @@ public:
     bool loadFont(const std::string& name, const std::string& path, float size) {
         TTF_Font* font = TTF_OpenFont(path.c_str(), size);
         if (!font) return false;
-        m_fonts[name] = font;
+        m_fonts[name] = GpuFont(font, nullptr);  // Font'lar device gerektirmez
         return true;
     }
 
     TTF_Font* getFont(const std::string& name) {
         auto it = m_fonts.find(name);
-        return (it != m_fonts.end()) ? it->second : nullptr;
+        return (it != m_fonts.end()) ? it->second.get() : nullptr;
     }
 
     // ============================================================================
@@ -512,27 +519,17 @@ public:
     // ============================================================================
 
     void cleanup() {
-        if (!m_gpuDevice) return;
-
+        // GpuResource destructor'ları otomatik cleanup yapacak
+        // Sadece map'leri temizle
         m_materials.clear();
-
-        for (auto sampler : m_samplers) {
-            if (sampler) SDL_ReleaseGPUSampler(m_gpuDevice, sampler);
-        }
-        m_samplers.clear();
-
-        for (auto& [name, pipeline] : m_pipelines) {
-            SDL_ReleaseGPUGraphicsPipeline(m_gpuDevice, pipeline);
-        }
-        m_pipelines.clear();
-
-        for (auto shader : m_shaders) {
-            if (shader) SDL_ReleaseGPUShader(m_gpuDevice, shader);
-        }
         m_shaders.clear();
-
+        m_samplers.clear();
         m_meshes.clear();
-
+        m_pipelines.clear();
+        m_textures.clear();
+        m_fonts.clear();
+        
+        // Mega-buffer'ları manuel cleanup (GpuResource değil)
         if (m_megaVertexBuffer) {
             SDL_ReleaseGPUBuffer(m_gpuDevice, m_megaVertexBuffer);
             m_megaVertexBuffer = nullptr;
@@ -540,30 +537,6 @@ public:
         if (m_megaIndexBuffer) {
             SDL_ReleaseGPUBuffer(m_gpuDevice, m_megaIndexBuffer);
             m_megaIndexBuffer = nullptr;
-        }
-
-        for (auto& [name, tex] : m_textures) {
-            SDL_ReleaseGPUTexture(m_gpuDevice, tex);
-        }
-        m_textures.clear();
-
-        for (auto& [name, font] : m_fonts) {
-            TTF_CloseFont(font);
-        }
-        m_fonts.clear();
-
-        // Varsayılan dokuları temizle
-        if (m_whiteTexture) {
-            SDL_ReleaseGPUTexture(m_gpuDevice, m_whiteTexture);
-            m_whiteTexture = nullptr;
-        }
-        if (m_blackTexture) {
-            SDL_ReleaseGPUTexture(m_gpuDevice, m_blackTexture);
-            m_blackTexture = nullptr;
-        }
-        if (m_defaultNormalTexture) {
-            SDL_ReleaseGPUTexture(m_gpuDevice, m_defaultNormalTexture);
-            m_defaultNormalTexture = nullptr;
         }
     }
 };

@@ -17,6 +17,7 @@
 
 void EditorManager::init(SDL_Window* window, SDL_GPUDevice* device, SDL_GPUTextureFormat swapchainFormat)
 {
+    m_window = window;
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -182,6 +183,9 @@ void EditorManager::setupDockspace()
 
         ImGui::DockBuilderDockWindow("Hierarchy", dock_left);
         ImGui::DockBuilderDockWindow("Viewport", dock_main_id);
+        ImGuiID dock_bottom = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Down, 0.3f, nullptr, &dock_main_id);
+        ImGui::DockBuilderDockWindow("Console", dock_bottom);
+        ImGui::DockBuilderDockWindow("Content Browser", dock_bottom);
         ImGui::DockBuilderDockWindow("Inspector", dock_right);
         ImGui::DockBuilderFinish(dockspace_id);
     }
@@ -192,11 +196,36 @@ void EditorManager::setupDockspace()
     {
         if (ImGui::BeginMenu("File"))
         {
-            if (ImGui::MenuItem("Exit")) { /* TODO */ }
+            if (ImGui::MenuItem("Exit")) { SDL_Event event; event.type = SDL_EVENT_QUIT; SDL_PushEvent(&event); }
             ImGui::EndMenu();
         }
         ImGui::EndMenuBar();
     }
+
+    // Toolbar
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 2));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2(0, 0));
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+    auto& colors = ImGui::GetStyle().Colors;
+    const auto& buttonHovered = colors[ImGuiCol_ButtonHovered];
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(buttonHovered.x, buttonHovered.y, buttonHovered.z, 0.5f));
+    const auto& buttonActive = colors[ImGuiCol_ButtonActive];
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(buttonActive.x, buttonActive.y, buttonActive.z, 0.5f));
+
+    ImGui::Begin("##toolbar", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+
+    float size = ImGui::GetWindowHeight() - 4.0f;
+    ImGui::SetCursorPosX((ImGui::GetWindowContentRegionMax().x * 0.5f) - (size * 0.5f));
+
+    bool isPlay = m_sceneState == SceneState::Play;
+    if (ImGui::Button(isPlay ? "Stop" : "Play", ImVec2(size, size))) {
+        if (m_sceneState == SceneState::Edit) m_sceneState = SceneState::Play;
+        else if (m_sceneState == SceneState::Play) m_sceneState = SceneState::Edit;
+    }
+
+    ImGui::End();
+    ImGui::PopStyleColor(3);
+    ImGui::PopStyleVar(2);
 
     ImGui::End();
 }

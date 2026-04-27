@@ -6,6 +6,9 @@
 
 #include <vector>
 #include <memory>
+#include "ecs/trait.h"
+#include "core/gpu_resource.h"
+
 namespace Astral {
 class Entity;
 }
@@ -71,23 +74,15 @@ struct CInput
 struct CSprite
 {
 	bool has{ false };
-	SDL_GPUTexture* texture{ nullptr };
+	Astral::GpuTexture texture;  // RAII managed
 	SDL_FRect srcRect{ 0.0f, 0.0f, 0.0f, 0.0f }; // Texture'dan hangi bölümü çizeceğimizi tanımlar
 	float angle{ 0.0f }; // Sprite'ın döndürülme açısı
 
 	CSprite() = default;
-	CSprite(SDL_GPUTexture* tex) : texture(tex) 
+	CSprite(SDL_GPUTexture* tex, SDL_GPUDevice* device) 
 	{
-		if (tex)
-		{
-			// SDL_GPUTexture boyutu farkli alinir
-			/*
-			float w, h;
-			if (SDL_GetTextureSize(tex, &w, &h))
-			{
-				srcRect = { 0.0f, 0.0f, w, h };
-			}
-			*/
+		if (tex && device) {
+			texture.reset(tex, device);
 		}
 	}
 };
@@ -175,25 +170,39 @@ struct CText
 	TTF_Font* font{ nullptr };
 	SDL_Color color{ 255, 255, 255, 255 };
 
-	// Cache için eklenenler
-	SDL_GPUTexture* texture{ nullptr }; 
+	// Cache için eklenenler - RAII managed
+	Astral::GpuTexture texture;  // Otomatik cleanup
 	float width{ 0 }, height{ 0 };
 	bool needsUpdate{ true }; // Metin değiştiğinde true yapılacak
 
 	CText() = default;
 	CText(const std::string& t, TTF_Font* f, const SDL_Color& c)
-		: text(t), font(f), color(c), needsUpdate(true), texture(nullptr) {
+		: text(t), font(f), color(c), needsUpdate(true) {
 	}
-	~CText() {}
-
-	void cleanup()
-	{
-		if (texture)
-		{
-			// SDL_ReleaseGPUTexture(m_gpuDevice, texture); // Device referansi lazim
-			texture = nullptr;
+	
+	// Copy constructor - texture'ı kopyalamaz (cache, yeniden oluşturulacak)
+	CText(const CText& o) 
+		: has(o.has), text(o.text), font(o.font), color(o.color), 
+		  width(o.width), height(o.height), needsUpdate(true) {
+		// texture kopyalanmaz, yeniden oluşturulacak
+	}
+	
+	// Copy assignment
+	CText& operator=(const CText& o) {
+		if (this != &o) {
+			has = o.has;
+			text = o.text;
+			font = o.font;
+			color = o.color;
+			width = o.width;
+			height = o.height;
+			needsUpdate = true;
+			// texture kopyalanmaz
 		}
+		return *this;
 	}
+	
+	~CText() = default;  // GpuTexture destructor'u otomatik cleanup yapacak
 
 	// Metni güncellemek için yardımcı fonksiyon
     void setText(const std::string& newText) {
@@ -201,6 +210,21 @@ struct CText
             text = newText;
             needsUpdate = true;
         }
+    }
+};
+
+
+struct CTrait
+{
+    bool has{ false };
+    std::vector<std::shared_ptr<Astral::ITrait>> traits;
+
+    CTrait() = default;
+
+    template<typename T, typename... Args>
+    void add(Args&&... args)
+    {
+        traits.push_back(std::make_shared<T>(std::forward<Args>(args)...));
     }
 };
 

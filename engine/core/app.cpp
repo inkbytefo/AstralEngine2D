@@ -13,12 +13,16 @@
 #include "systems/input_system.h"
 #include "systems/lifespan_system.h"
 #include "systems/text_system.h"
+#include "systems/trait_system.h"
+#include "core/scene_serializer.h"
 #include "renderer/sdl3_graphics_device.h"
 #include "renderer/sdl3_renderer.h"
 #include "editor/editor_manager.h"
 #include "editor/panels/scene_hierarchy_panel.h"
 #include "editor/panels/properties_panel.h"
 #include "editor/panels/viewport_panel.h"
+#include "editor/panels/console_panel.h"
+#include "editor/panels/content_browser_panel.h"
 
 App::App() = default;
 App::~App() = default;
@@ -60,11 +64,12 @@ bool App::init(const char* title, int width, int height)
 	inputSys->setApp(this);
 	m_systemManager.addSystem(std::move(inputSys));
 
-	m_systemManager.addSystem(std::make_unique<Astral::TransformSystem>());
 	m_systemManager.addSystem(std::make_unique<Astral::PhysicsSystem>());
+	m_systemManager.addSystem(std::make_unique<Astral::TransformSystem>());
 	m_systemManager.addSystem(std::make_unique<Astral::CameraSystem>());
 	m_systemManager.addSystem(std::make_unique<Astral::LifespanSystem>());
 	m_systemManager.addSystem(std::make_unique<Astral::TextSystem>());
+	m_systemManager.addSystem(std::make_unique<Astral::TraitSystem>());
 	
 	auto renderSys = std::make_unique<Astral::RenderSystem>();
 	renderSys->setRenderer(m_renderer.get());
@@ -98,6 +103,9 @@ void App::run()
 			viewportPanel->setEditorManager(m_editorManager.get());
 			m_editorManager->registerPanel(std::move(viewportPanel));
 
+			m_editorManager->registerPanel(std::make_unique<ConsolePanel>());
+			m_editorManager->registerPanel(std::make_unique<ContentBrowserPanel>());
+
 			if (auto* is = m_systemManager.getSystem<Astral::InputSystem>()) {
 				is->setActionCallback([this](const std::string& name, bool started) {
 					if (m_scene) m_scene->sDoAction(name, started);
@@ -130,6 +138,30 @@ void App::run()
 
 		// Scene update - sadece Play modunda
 		SceneState sceneState = m_editorManager->getSceneState();
+		
+		// Play/Stop Geçişleri ve Snapshot Yönetimi
+		static SceneState lastState = SceneState::Edit;
+		if (sceneState != lastState) {
+			if (sceneState == SceneState::Play && lastState == SceneState::Edit) {
+				// Play başlatıldı, snapshot al
+				m_editorManager->setSceneSnapshot(SceneSerializer::createSnapshot(m_scene->getEntityManager()));
+				
+				// Trait'leri initialize et
+				for (auto& e : m_scene->getEntityManager().getEntities()) {
+					if (e->has<CTrait>()) {
+						for (auto& trait : e->get<CTrait>().traits) {
+							trait->onInit(*e);
+						}
+					}
+				}
+			}
+			else if (sceneState == SceneState::Edit && lastState == SceneState::Play) {
+				// Stop basıldı, snapshot'tan geri dön
+				SceneSerializer::restoreFromSnapshot(m_editorManager->getSceneSnapshot(), m_scene->getEntityManager());
+			}
+			lastState = sceneState;
+		}
+
 		if (sceneState == SceneState::Play) {
 			m_scene->update(m_deltaTime);
 		}
@@ -142,9 +174,14 @@ void App::run()
 			if (m_scene) {
 				// Sistemleri seçici çalıştır
 				if (sceneState == SceneState::Play) {
-					// Play modunda tüm sistemler çalışsın ve sahne kamerasını kullansın
+					// Play modunda tüm sistemler çalışsın
+					// Şimdilik gameplay kamerayı devre dışı bıraktık, editör kamerasını kullanmaya devam ediyoruz
 					if (auto* renderSys = m_systemManager.getSystem<Astral::RenderSystem>()) {
-						renderSys->clearCameraOverride();
+						glm::mat4 view, proj;
+						glm::vec3 pos;
+						if (m_editorManager->getEditorCameraMatrices(view, proj, pos)) {
+							renderSys->setCameraOverride(view, proj, pos);
+						}
 					}
 					m_systemManager.update(m_scene->getEntityManager(), m_deltaTime);
 				} else if (sceneState == SceneState::Edit || sceneState == SceneState::Pause) {

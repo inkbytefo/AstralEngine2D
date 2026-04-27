@@ -53,6 +53,18 @@ public:
      */
     static bool restoreFromSnapshot(const std::string& jsonString,
                                    Astral::EntityManager& entityManager);
+    
+    /**
+     * @brief Tek bir entity'yi prefab olarak kaydet
+     */
+    static bool serializeEntityToPrefab(const std::string& filepath, 
+                                       const std::shared_ptr<Astral::Entity>& entity);
+    
+    /**
+     * @brief Prefab dosyasından entity spawn et
+     */
+    static std::shared_ptr<Astral::Entity> loadPrefab(const std::string& filepath, 
+                                                    Astral::EntityManager& entityManager);
 
 private:
     // ID Mapping - Eski ID'leri yeni ID'lere eşleştir

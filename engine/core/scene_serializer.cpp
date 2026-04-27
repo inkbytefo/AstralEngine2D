@@ -273,6 +273,33 @@ static CFreeLook deserializeCFreeLook(const json& j) {
     return comp;
 }
 
+static json serializeCTrait(const CTrait& comp) {
+    json j;
+    json traits = json::array();
+    for (const auto& trait : comp.traits) {
+        json t;
+        t["type"] = trait->getName();
+        json props;
+        trait->serialize(props);
+        t["properties"] = props;
+        traits.push_back(t);
+    }
+    j["traits"] = traits;
+    return j;
+}
+
+static CTrait deserializeCTrait(const json& j) {
+    CTrait comp;
+    if (j.contains("traits") && j["traits"].is_array()) {
+        for (const auto& tJson : j["traits"]) {
+            std::string type = tJson.value("type", "");
+            // Note: TraitFactory should be used here.
+        }
+    }
+    comp.has = true;
+    return comp;
+}
+
 // ============================================================================
 // MAIN SERIALIZATION FUNCTIONS
 // ============================================================================
@@ -352,6 +379,11 @@ json SceneSerializer::serializeEntity(const std::shared_ptr<Astral::Entity>& ent
     if (entity->has<CFreeLook>()) {
         components["CFreeLook"] = serializeCFreeLook(entity->get<CFreeLook>());
     }
+
+    // CTrait
+    if (entity->has<CTrait>()) {
+        components["CTrait"] = serializeCTrait(entity->get<CTrait>());
+    }
     
     entityJson["components"] = components;
     return entityJson;
@@ -428,6 +460,11 @@ std::shared_ptr<Astral::Entity> SceneSerializer::deserializeEntity(
     // CFreeLook
     if (components.contains("CFreeLook")) {
         entity->add<CFreeLook>(deserializeCFreeLook(components["CFreeLook"]));
+    }
+
+    // CTrait
+    if (components.contains("CTrait")) {
+        entity->add<CTrait>(deserializeCTrait(components["CTrait"]));
     }
     
     return entity;
@@ -638,5 +675,51 @@ bool SceneSerializer::restoreFromSnapshot(const std::string& jsonString,
     catch (const std::exception& e) {
         SDL_Log("SceneSerializer: Snapshot restore hatası: %s", e.what());
         return false;
+    }
+}
+
+bool SceneSerializer::serializeEntityToPrefab(const std::string& filepath, 
+                                             const std::shared_ptr<Astral::Entity>& entity) {
+    try {
+        json entityJson = serializeEntity(entity);
+        
+        std::ofstream file(filepath);
+        if (!file.is_open()) return false;
+        
+        file << entityJson.dump(2);
+        file.close();
+        
+        SDL_Log("SceneSerializer: Prefab kaydedildi: %s", filepath.c_str());
+        return true;
+    }
+    catch (const std::exception& e) {
+        SDL_Log("SceneSerializer: Prefab serialization hatası: %s", e.what());
+        return false;
+    }
+}
+
+std::shared_ptr<Astral::Entity> SceneSerializer::loadPrefab(const std::string& filepath, 
+                                                          Astral::EntityManager& entityManager) {
+    try {
+        std::ifstream file(filepath);
+        if (!file.is_open()) return nullptr;
+        
+        json entityJson;
+        file >> entityJson;
+        file.close();
+        
+        IDMap idMap;
+        auto entity = deserializeEntity(entityJson, entityManager, idMap);
+        
+        // Tek bir entity olduğu için hiyerarşiyi kısıtlı olarak restore et
+        // Eğer prefab içinde çocuk ID'leri varsa, onlar şu an sahnede yoksa bağlanamazlar.
+        // Ama prefab sistemi genellikle hiyerarşiyi tek bir dosyada tutar (ileride genişletilebilir).
+        
+        entityManager.update();
+        return entity;
+    }
+    catch (const std::exception& e) {
+        SDL_Log("SceneSerializer: Prefab yükleme hatası: %s", e.what());
+        return nullptr;
     }
 }

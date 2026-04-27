@@ -116,11 +116,17 @@ public:
      */
     bool getEditorCameraMatrices(glm::mat4& view, glm::mat4& proj, glm::vec3& pos);
 
+    /**
+     * @brief Get the SDL window associated with the editor.
+     */
+    SDL_Window* getWindow() const { return m_window; }
+
 private:
     void setupDockspace();
 
 private:
     std::unordered_map<std::string, std::unique_ptr<IEditorPanel>> m_panels;
+    SDL_Window* m_window{ nullptr };
     std::shared_ptr<Astral::Entity> m_selectedEntity{ nullptr };
     bool m_dockspaceInitialized{ false };
     SceneState m_sceneState{ SceneState::Edit };
