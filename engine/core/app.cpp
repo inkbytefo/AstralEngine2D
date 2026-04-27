@@ -16,6 +16,9 @@
 #include "renderer/sdl3_graphics_device.h"
 #include "renderer/sdl3_renderer.h"
 #include "editor/editor_manager.h"
+#include "editor/panels/scene_hierarchy_panel.h"
+#include "editor/panels/properties_panel.h"
+#include "editor/panels/viewport_panel.h"
 
 App::App() = default;
 App::~App() = default;
@@ -87,6 +90,22 @@ void App::run()
 			m_scene->init();
 			m_systemManager.init(m_scene->getEntityManager());
 
+			// Register editor panels with the current scene's entity manager
+			static bool panelsRegistered = false;
+			if (!panelsRegistered && m_editorManager)
+			{
+				panelsRegistered = true;
+				
+				// Register Hierarchy Panel
+				m_editorManager->registerPanel(std::make_unique<SceneHierarchyPanel>(&m_scene->getEntityManager()));
+				
+				// Register Properties Panel
+				m_editorManager->registerPanel(std::make_unique<PropertiesPanel>());
+				
+				// Register Viewport Panel
+				m_editorManager->registerPanel(std::make_unique<ViewportPanel>(m_renderer.get(), &m_scene->getEntityManager()));
+			}
+
 			if (auto* is = m_systemManager.getSystem<Astral::InputSystem>()) {
 				is->setActionCallback([this](const std::string& name, bool started) {
 					if (m_scene) m_scene->sDoAction(name, started);
@@ -101,6 +120,12 @@ void App::run()
 		Uint64 now = SDL_GetTicks();
 		m_deltaTime = (now - m_lastTime) / 1000.0f;
 		m_lastTime = now;
+		
+		// FPS hesapla
+		if (m_deltaTime > 0.0f)
+		{
+			m_fps = 1.0f / m_deltaTime;
+		}
 
 		SDL_Event event;
 		while (SDL_PollEvent(&event)) {
@@ -126,6 +151,14 @@ void App::run()
 			// 2. ImGui Arayüzünü Hazırla (Render Pass dışında)
 			if (m_scene) {
 				m_editorManager->drawEditor(m_scene->getEntityManager(), m_renderer->getSceneTexture(), m_renderer.get());
+				
+				// Set debug info for viewport
+				int drawCalls = 0;
+				if (auto* renderSys = m_systemManager.getSystem<Astral::RenderSystem>())
+				{
+					drawCalls = renderSys->getDrawCallCount();
+				}
+				m_editorManager->setDebugInfo(m_fps, drawCalls);
 			}
 			m_editorManager->prepare(m_renderer->getCurrentCommandBuffer());
 

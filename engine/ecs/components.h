@@ -111,6 +111,7 @@ struct CCamera
 	bool isActive{ true }; // Birden fazla kamera varsa hangisi aktif?
 	glm::mat4 view{ 1.0f };
 	glm::mat4 projection{ 1.0f };
+	float aspectRatio{ 16.0f / 9.0f }; // Viewport'un en-boy oranı
 
 	CCamera() = default;
 	CCamera(const glm::mat4& v, const glm::mat4& p)

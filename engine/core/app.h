@@ -28,6 +28,7 @@ public:
 	SDL_GPUDevice* getGPUDevice() const { return m_graphicsDevice ? m_graphicsDevice->getInternalDevice() : nullptr; }
 	SDL_Window* getWindow() const { return m_window; }
 	float getDeltaTime() const { return m_deltaTime; }
+	float getFPS() const { return m_fps; }
 	Astral::SystemManager& getSystemManager() { return m_systemManager; }
 	Astral::AssetManager& getAssetManager() { return m_assetManager; }
 	Astral::IRenderer* getRenderer() const { return m_renderer.get(); }
@@ -42,6 +43,7 @@ private:
 	std::unique_ptr<Scene> m_nextScene{ nullptr };
 	Uint64 m_lastTime{ 0 }; // Delta time hesaplaması için önceki kare zamanı.
 	float m_deltaTime{ 0.0f }; // Kareler arası geçen süre (donanımdan bağımsız hız için).
+	float m_fps{ 0.0f }; // Saniye başına kare sayısı
 
 	Astral::SystemManager m_systemManager;
 	Astral::AssetManager m_assetManager;

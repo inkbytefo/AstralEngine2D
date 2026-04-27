@@ -42,11 +42,6 @@ void RenderSystem::render(IRenderer* renderer, Astral::EntityManager& entityMana
     for (auto& entity : entityManager.view<CCamera, CTransform>()) {
         auto& cam = entity->get<CCamera>();
         if (cam.isActive) {
-            int w, h;
-            SDL_GetWindowSize(m_window, &w, &h);
-            if (w > 0 && h > 0) {
-                cam.projection = glm::perspective(glm::radians(60.0f), (float)w / h, 0.1f, 1000.0f);
-            }
             viewMatrix = cam.view;
             projMatrix = cam.projection;
             camPos = glm::vec3(entity->get<CTransform>().globalMatrix[3]);

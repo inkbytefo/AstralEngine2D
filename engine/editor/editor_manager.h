@@ -2,12 +2,18 @@
 
 #include <SDL3/SDL.h>
 #include <memory>
+#include <unordered_map>
+#include <string>
+#include <functional>
 
 namespace Astral {
     class EntityManager;
     class Entity;
     class IRenderer;
 }
+
+class IEditorPanel;
+class ViewportPanel;
 
 class EditorManager {
 public:
@@ -50,24 +56,36 @@ public:
      */
     void shutdown();
 
+    /**
+     * @brief Register a panel with the editor.
+     */
+    void registerPanel(std::unique_ptr<IEditorPanel> panel);
+
+    /**
+     * @brief Select an entity and notify all panels.
+     */
+    void selectEntity(std::shared_ptr<Astral::Entity> entity);
+
+    /**
+     * @brief Deselect the current entity and notify all panels.
+     */
+    void deselectEntity();
+
+    /**
+     * @brief Get the currently selected entity.
+     */
+    std::shared_ptr<Astral::Entity> getSelectedEntity() const { return m_selectedEntity; }
+
+    /**
+     * @brief Set debug info (FPS, draw calls) for viewport display.
+     */
+    void setDebugInfo(float fps, int drawCalls);
+
 private:
-    /**
-     * @brief Draws the Scene Hierarchy panel.
-     */
-    void drawHierarchyPanel(Astral::EntityManager& entityManager);
-
-    /**
-     * @brief Draws the Inspector panel for the selected entity.
-     */
-    void drawInspectorPanel();
-
-    /**
-     * @brief Draws the Viewport panel displaying the offscreen scene texture.
-     */
-    void drawViewportPanel(SDL_GPUTexture* sceneTexture, Astral::IRenderer* renderer, Astral::EntityManager& entityManager);
+    void setupDockspace();
 
 private:
+    std::unordered_map<std::string, std::unique_ptr<IEditorPanel>> m_panels;
     std::shared_ptr<Astral::Entity> m_selectedEntity{ nullptr };
-    uint32_t m_viewportWidth{ 1280 };  // Başlangıç boyutu 1280x720
-    uint32_t m_viewportHeight{ 720 };
+    bool m_dockspaceInitialized{ false };
 };

@@ -3,7 +3,10 @@
 
 namespace Astral {
 
-SDL3Renderer::SDL3Renderer(IGraphicsDevice* device) : m_device(device) {}
+SDL3Renderer::SDL3Renderer(IGraphicsDevice* device) : m_device(device) {
+    // Initialize viewport with default size
+    resizeViewport(m_viewportWidth, m_viewportHeight);
+}
 
 SDL3Renderer::~SDL3Renderer() {
     if (m_depthTexture) {
