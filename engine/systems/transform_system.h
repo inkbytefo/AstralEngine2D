@@ -31,9 +31,9 @@ private:
 
         // 2. Bu nesnenin Yerel (Local) matrisini hesapla
         glm::mat4 localMatrix = glm::translate(glm::mat4(1.0f), transform.pos);
-        localMatrix = glm::rotate(localMatrix, transform.rotation.x, glm::vec3(1, 0, 0));
-        localMatrix = glm::rotate(localMatrix, transform.rotation.y, glm::vec3(0, 1, 0));
-        localMatrix = glm::rotate(localMatrix, transform.rotation.z, glm::vec3(0, 0, 1));
+        localMatrix = glm::rotate(localMatrix, glm::radians(transform.rotation.x), glm::vec3(1, 0, 0));
+        localMatrix = glm::rotate(localMatrix, glm::radians(transform.rotation.y), glm::vec3(0, 1, 0));
+        localMatrix = glm::rotate(localMatrix, glm::radians(transform.rotation.z), glm::vec3(0, 0, 1));
         localMatrix = glm::scale(localMatrix, transform.scale);
 
         // 3. Global matris = Ebeveynin Globali * Benim Yerelim

@@ -19,6 +19,14 @@ public:
     virtual void beginUIRenderPass(SDL_Window* window) = 0;
     virtual void endRenderPass() = 0;
 
+    // Phase 1 Part B: Viewport & Offscreen Rendering
+    virtual void resizeViewport(uint32_t width, uint32_t height) = 0;
+    virtual void beginScenePass(const SDL_FColor& clearColor) = 0;
+    virtual void endScenePass() = 0;
+    virtual void beginUIPass(SDL_Window* window) = 0;
+    virtual void endUIPass() = 0;
+    virtual SDL_GPUTexture* getSceneTexture() const = 0;
+
     // Pipeline ve Bindings
     virtual void bindPipeline(SDL_GPUGraphicsPipeline* pipeline) = 0;
     virtual void bindVertexBuffers(uint32_t firstSlot, const SDL_GPUBufferBinding* bindings, uint32_t count) = 0;

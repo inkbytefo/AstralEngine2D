@@ -1,5 +1,5 @@
-//Proje genelinde ihtiyaç duyulan standart kütüphanelerin toplandığı üst bilgi dosyası.
 #pragma once
+#define GLM_ENABLE_EXPERIMENTAL
 
 #include <iostream>
 #include <cmath>

@@ -168,12 +168,12 @@ void SandboxScene::loadShaders()
         m_app->getWindow()
     );
 
-    // PBR Pipeline oluştur
+    // PBR Pipeline oluştur (Offscreen Doku formatına uygun: R8G8B8A8_UNORM)
     m_app->getAssetManager().createPipeline(
         "pbr_pipeline",
         vertShader,
         fragShader,
-        swapchainFormat,
+        SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
         true, // depth test enabled (3D için)
         SDL_GPU_CULLMODE_BACK // backface culling enabled
     );

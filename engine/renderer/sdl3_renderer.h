@@ -18,6 +18,14 @@ public:
     void beginUIRenderPass(SDL_Window* window) override;
     void endRenderPass() override;
 
+    // Phase 1 Part B
+    void resizeViewport(uint32_t width, uint32_t height) override;
+    void beginScenePass(const SDL_FColor& clearColor) override;
+    void endScenePass() override;
+    void beginUIPass(SDL_Window* window) override;
+    void endUIPass() override;
+    SDL_GPUTexture* getSceneTexture() const override { return m_sceneColorTexture; }
+
     void bindPipeline(SDL_GPUGraphicsPipeline* pipeline) override;
     void bindVertexBuffers(uint32_t firstSlot, const SDL_GPUBufferBinding* bindings, uint32_t count) override;
     void bindIndexBuffer(const SDL_GPUBufferBinding* binding, SDL_GPUIndexElementSize indexSize) override;
@@ -37,6 +45,13 @@ private:
     SDL_GPURenderPass* m_currentRenderPass{ nullptr };
     SDL_GPUTexture* m_depthTexture{ nullptr };
     SDL_GPUTexture* m_currentSwapchainTexture{ nullptr }; // Cache for the frame
+    
+    // Scene textures (Offscreen)
+    SDL_GPUTexture* m_sceneColorTexture{ nullptr };
+    SDL_GPUTexture* m_sceneDepthTexture{ nullptr };
+    uint32_t m_viewportWidth{ 1280 };
+    uint32_t m_viewportHeight{ 720 };
+
     uint32_t m_currentSwapchainW{ 0 };
     uint32_t m_currentSwapchainH{ 0 };
     

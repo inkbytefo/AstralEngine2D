@@ -3,6 +3,7 @@
 #include <SDL3_image/SDL_image.h>
 #include <SDL3_mixer/SDL_mixer.h>
 
+#include "imgui.h"
 #include "core/asset_manager.h"
 #include "core/sound_manager.h"
 #include "systems/render_system.h"
@@ -115,24 +116,33 @@ void App::run()
 		SDL_FColor clearColor = { 0.1f, 0.15f, 0.2f, 1.0f };
 
 		if (m_renderer->beginFrame()) {
-			if (m_scene) {
-				m_editorManager->drawEditor(m_scene->getEntityManager());
-			}
-
-			// SDL_GPU için PrepareDrawData mutlaka Render Pass dışında çağrılmalıdır.
-			m_editorManager->prepare(m_renderer->getCurrentCommandBuffer());
-
-			m_renderer->beginRenderPass(m_window, clearColor);
+			// 1. Sahneyi Offscreen Dokuya Çiz
+			m_renderer->beginScenePass(clearColor);
 			if (m_scene) {
 				m_systemManager.update(m_scene->getEntityManager(), m_deltaTime);
 			}
-			m_renderer->endRenderPass();
+			m_renderer->endScenePass();
 
-			// UI Pass: Derinlik tamponu kullanmadan (ImGui için)
-			m_renderer->beginUIRenderPass(m_window);
+			// 2. ImGui Arayüzünü Hazırla (Render Pass dışında)
+			if (m_scene) {
+				m_editorManager->drawEditor(m_scene->getEntityManager(), m_renderer->getSceneTexture(), m_renderer.get());
+			}
+			m_editorManager->prepare(m_renderer->getCurrentCommandBuffer());
+
+			// 3. Arayüzü Swapchain'e Çiz
+			m_renderer->beginUIPass(m_window);
 			m_editorManager->render(m_renderer->getCurrentCommandBuffer(), m_renderer->getCurrentRenderPass());
-			m_renderer->endRenderPass();
+			m_renderer->endUIPass();
+
 			m_renderer->endFrame();
+
+			// 4. ImGui Multi-Viewport desteği için platform pencerelerini güncelle
+			ImGuiIO& io = ImGui::GetIO();
+			if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+			{
+				ImGui::UpdatePlatformWindows();
+				ImGui::RenderPlatformWindowsDefault();
+			}
 		}
 	}
 }

@@ -6,6 +6,7 @@
 namespace Astral {
     class EntityManager;
     class Entity;
+    class IRenderer;
 }
 
 class EditorManager {
@@ -32,7 +33,7 @@ public:
     /**
      * @brief Main entry point for drawing the Editor UI (Dockspace, Panels, etc.).
      */
-    void drawEditor(Astral::EntityManager& entityManager);
+    void drawEditor(Astral::EntityManager& entityManager, SDL_GPUTexture* sceneTexture, Astral::IRenderer* renderer);
     
     /**
      * @brief Prepares the ImGui draw data (uploads to GPU). Must be called BEFORE beginRenderPass.
@@ -60,6 +61,13 @@ private:
      */
     void drawInspectorPanel();
 
+    /**
+     * @brief Draws the Viewport panel displaying the offscreen scene texture.
+     */
+    void drawViewportPanel(SDL_GPUTexture* sceneTexture, Astral::IRenderer* renderer, Astral::EntityManager& entityManager);
+
 private:
     std::shared_ptr<Astral::Entity> m_selectedEntity{ nullptr };
+    uint32_t m_viewportWidth{ 1280 };  // Başlangıç boyutu 1280x720
+    uint32_t m_viewportHeight{ 720 };
 };

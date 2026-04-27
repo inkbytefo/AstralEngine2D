@@ -38,6 +38,7 @@ set(SOURCES
     "engine/vendor/imgui/imgui_widgets.cpp"
     "engine/vendor/imgui/backends/imgui_impl_sdl3.cpp"
     "engine/vendor/imgui/backends/imgui_impl_sdlgpu3.cpp"
+    "engine/vendor/imgui/ImGuizmo.cpp"
 )
 
 add_executable(Astral ${SOURCES} 
