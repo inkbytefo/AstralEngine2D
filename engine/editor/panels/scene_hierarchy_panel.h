@@ -35,7 +35,11 @@ public:
 
 private:
     void drawEntityNode(std::shared_ptr<Astral::Entity> entity);
-    void drawContextMenu(std::shared_ptr<Astral::Entity> entity);
+
+    // Drag-drop reparenting yardımcısı
+    void handleDragDrop(std::shared_ptr<Astral::Entity> entity);
+    // Entity'yi parent'tan ayır
+    void detachFromParent(std::shared_ptr<Astral::Entity> entity);
 
     Astral::EntityManager* m_entityManager{ nullptr };
     std::shared_ptr<Astral::Entity> m_selectedEntity{ nullptr };

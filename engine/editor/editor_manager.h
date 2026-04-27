@@ -134,6 +134,7 @@ private:
     SDL_Window* m_window{ nullptr };
     std::shared_ptr<Astral::Entity> m_selectedEntity{ nullptr };
     bool m_dockspaceInitialized{ false };
+    bool m_callbacksInitialized{ false };
     SceneState m_sceneState{ SceneState::Edit };
     std::string m_sceneSnapshot;  // JSON snapshot for Play/Stop
 };

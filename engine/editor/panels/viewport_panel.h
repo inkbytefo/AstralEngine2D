@@ -19,6 +19,7 @@ namespace Astral {
 // Forward declaration for ImGuizmo
 namespace ImGuizmo {
     enum OPERATION : int;
+    enum MODE : int;
 }
 
 /**
@@ -38,6 +39,20 @@ public:
     glm::mat4 getViewMatrix() const;
     glm::mat4 getProjectionMatrix(float aspectRatio) const;
     void update(float deltaTime, bool isHovered);
+};
+
+/**
+ * @brief Gizmo ayarları — snap, space mode ve operasyon bilgisi
+ */
+struct GizmoSettings {
+    // ImGuizmo::OPERATION bitmask values:
+    //   TRANSLATE = 7, ROTATE = 120, SCALE = 896
+    int operation{ 7 };         // Varsayılan: TRANSLATE
+    int mode{ 0 };              // 0 = LOCAL, 1 = WORLD (ImGuizmo::MODE)
+    bool useSnap{ false };
+    float translateSnap{ 0.5f };  // Çeviri snap birimi (metre)
+    float rotateSnap{ 15.0f };    // Rotasyon snap birimi (derece)
+    float scaleSnap{ 0.1f };     // Ölçek snap birimi
 };
 
 /**
@@ -83,9 +98,8 @@ public:
     EditorCamera& getEditorCamera() { return m_editorCamera; }
 
 private:
-    void drawGizmoModeButtons();
-    void drawViewportInfo();
-    void drawPlayControls();
+    void drawToolbar();
+    void drawGizmos(const glm::mat4& view, const glm::mat4& projection, glm::vec2 viewportPos, glm::vec2 viewportSize);
     void handleKeyboardShortcuts();
 
 private:
@@ -97,8 +111,8 @@ private:
     uint32_t m_viewportWidth{ 1280 };
     uint32_t m_viewportHeight{ 720 };
     
-    // Gizmo mode (using int to avoid ImGuizmo dependency in header)
-    int m_gizmoMode{ 0 }; // 0 = TRANSLATE, 1 = ROTATE, 2 = SCALE
+    // Gizmo settings (typed struct replaces raw int)
+    GizmoSettings m_gizmo;
     
     // Debug info
     float m_fps{ 0.0f };
@@ -108,3 +122,4 @@ private:
     EditorCamera m_editorCamera;
     bool m_isCameraActive{ false };
 };
+

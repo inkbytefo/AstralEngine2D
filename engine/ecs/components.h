@@ -106,9 +106,12 @@ struct CCamera
 {
 	bool has{ false };
 	bool isActive{ true }; // Birden fazla kamera varsa hangisi aktif?
+	float fov{ 60.0f };                  // Dikey görüş açısı (derece)
+	float nearPlane{ 0.1f };             // Yakın kırpma düzlemi
+	float farPlane{ 1000.0f };           // Uzak kırpma düzlemi
+	float aspectRatio{ 16.0f / 9.0f };   // Viewport'un en-boy oranı
 	glm::mat4 view{ 1.0f };
 	glm::mat4 projection{ 1.0f };
-	float aspectRatio{ 16.0f / 9.0f }; // Viewport'un en-boy oranı
 
 	CCamera() = default;
 	CCamera(const glm::mat4& v, const glm::mat4& p)

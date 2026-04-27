@@ -216,6 +216,20 @@ void EditorManager::setupDockspace(Astral::EntityManager& entityManager)
             ImGui::EndMenu();
         }
 
+        if (ImGui::BeginMenu("Edit"))
+        {
+            if (ImGui::MenuItem("Undo", "Ctrl+Z", false, false)) {} // TODO: Undo sistemi
+            if (ImGui::MenuItem("Redo", "Ctrl+Y", false, false)) {} // TODO: Redo sistemi
+            ImGui::Separator();
+            if (ImGui::MenuItem("Duplicate", "Ctrl+D", false, m_selectedEntity != nullptr)) {
+                // TODO: Entity duplicate
+            }
+            if (ImGui::MenuItem("Delete", "Del", false, m_selectedEntity != nullptr)) {
+                if (m_selectedEntity) { m_selectedEntity->destroy(); deselectEntity(); }
+            }
+            ImGui::EndMenu();
+        }
+
         if (ImGui::BeginMenu("View"))
         {
             if (ImGui::MenuItem("Reset Layout")) {
@@ -233,36 +247,19 @@ void EditorManager::drawEditor(Astral::EntityManager& entityManager, SDL_GPUText
 {
     setupDockspace(entityManager);
 
-    // Setup hierarchy panel callback
-    if (m_panels.find("Hierarchy") != m_panels.end())
+    // Hierarchy callback'ini sadece bir kez ayarla (her karede tekrar oluşturma)
+    if (!m_callbacksInitialized)
     {
-        auto* hierarchyPanel = dynamic_cast<SceneHierarchyPanel*>(m_panels["Hierarchy"].get());
-        if (hierarchyPanel)
+        if (m_panels.find("Hierarchy") != m_panels.end())
         {
-            hierarchyPanel->setOnSelectionChanged([this](std::shared_ptr<Astral::Entity> entity) {
-                this->selectEntity(entity);
-            });
-        }
-    }
-
-    // Set scene texture and debug info for viewport panel
-    if (m_panels.find("Viewport") != m_panels.end())
-    {
-        auto* viewportPanel = dynamic_cast<ViewportPanel*>(m_panels["Viewport"].get());
-        if (viewportPanel)
-        {
-            viewportPanel->setSceneTexture(sceneTexture);
-            
-            // Get draw call count from renderer
-            int drawCalls = 0;
-            if (renderer)
+            auto* hierarchyPanel = dynamic_cast<SceneHierarchyPanel*>(m_panels["Hierarchy"].get());
+            if (hierarchyPanel)
             {
-                // Note: We'll need to add a method to get draw call count from renderer
-                // For now, we'll pass 0
-                drawCalls = 0;
+                hierarchyPanel->setOnSelectionChanged([this](std::shared_ptr<Astral::Entity> entity) {
+                    this->selectEntity(entity);
+                });
+                m_callbacksInitialized = true;
             }
-            
-            // Debug info will be set from App
         }
     }
 
