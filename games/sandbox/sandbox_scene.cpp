@@ -23,6 +23,9 @@ void SandboxScene::init()
     // Shader'ları yükle ve pipeline oluştur
     loadShaders();
 
+    // Texture ve Material oluştur
+    createMaterials();
+
     // Kamera entity'si oluştur
     auto cameraEnt = m_entityManager.addEntity("camera");
     cameraEnt->add<CCamera>(
@@ -45,7 +48,7 @@ void SandboxScene::init()
     cubeEnt->add<CTransform>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f));
     cubeEnt->cTransform.scale = glm::vec3(0.5f);
     cubeEnt->cTransform.rotation = glm::vec3(0.0f);
-    cubeEnt->add<CMesh>("cube", "basic3d");
+    cubeEnt->add<CMesh>("cube", "box_material"); // Material kullanıyoruz artık!
 
     // ÖNEMLİ: Entity'leri aktif listeye taşı!
     m_entityManager.update();
@@ -100,24 +103,24 @@ void SandboxScene::loadShaders()
     // Shader dosyalarını yükle (SPIRV formatında)
     SDL_GPUShader* vertShader = ShaderLoader::loadShaderFromFile(
         device,
-        "assets/shaders/basic_3d.vert.spv",
+        "assets/shaders/basic_3d.vert.glsl.spv",
         SDL_GPU_SHADERSTAGE_VERTEX,
         "main",
         0, // samplers
         0, // storage textures
         0, // storage buffers
-        1  // uniform buffers (MVP matrisleri için)
+        1  // uniform buffers (MVP matrisi için - Set 0, Binding 0)
     );
 
     SDL_GPUShader* fragShader = ShaderLoader::loadShaderFromFile(
         device,
-        "assets/shaders/basic_3d.frag.spv",
+        "assets/shaders/basic_3d.frag.glsl.spv",
         SDL_GPU_SHADERSTAGE_FRAGMENT,
         "main",
-        0, // samplers
+        1, // samplers (albedoTex için - Set 2, Binding 0)
         0, // storage textures
         0, // storage buffers
-        0  // uniform buffers
+        1  // uniform buffers (FragmentUniform için - Set 0, Binding 0)
     );
 
     if (!vertShader || !fragShader) {
@@ -147,6 +150,20 @@ void SandboxScene::loadShaders()
     );
 
     SDL_Log("Pipeline 'basic3d' oluşturuldu!");
+}
+
+void SandboxScene::createMaterials()
+{
+    using namespace Astral;
+    AssetManager& assetMgr = AssetManager::getInstance();
+
+    // box.png yükle (assets/textures/ klasörüne atılmış olmalı)
+    assetMgr.uploadTexture("box_tex", "assets/textures/box.png");
+
+    // Material yarat (Pipeline + Texture'u birleştirir)
+    assetMgr.createMaterial("box_material", "basic3d", "box_tex");
+
+    SDL_Log("Material 'box_material' oluşturuldu!");
 }
 
 void SandboxScene::update(float deltaTime)

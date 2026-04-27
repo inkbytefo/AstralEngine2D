@@ -16,6 +16,7 @@ public:
 private:
     void createCubeMesh();
     void loadShaders();
+    void createMaterials();
     
     bool m_running = true;
     float m_rotation = 0.0f; // Üçgeni döndürmek için

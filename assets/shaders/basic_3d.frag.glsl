@@ -1,29 +1,35 @@
 #version 450
 
-// Fragment Input - Vertex shader'dan gelen interpolated data
+// Vertex shader'dan gelen veriler
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
 layout(location = 2) in vec3 fragWorldPos;
 layout(location = 3) in vec3 fragNormal;
 
-// Fragment Output - Final renk (swapchain'e yazılacak)
+// Çıktı
 layout(location = 0) out vec4 outColor;
 
+// SDL_GPU Fragment Shader Binding:
+// Sampler binding - slot 0
+layout(set = 2, binding = 0) uniform sampler2D albedoTex;
+
+// Fragment Uniforms (SDL_GPU set = 3, binding = 0)
+layout(set = 3, binding = 0) uniform FragmentPushConstants {
+    vec4 baseColor;
+    int hasTexture;
+    int _padding[3];
+} fragUniforms;
+
 void main() {
-    // Basit directional light (yukarıdan gelen ışık)
-    vec3 lightDir = normalize(vec3(0.5, -1.0, 0.3));
-    vec3 normal = normalize(fragNormal);
+    vec4 texColor = vec4(1.0);
     
-    // Diffuse lighting (Lambertian)
-    float diffuse = max(dot(normal, -lightDir), 0.0);
+    // Texture varsa oku
+    if (fragUniforms.hasTexture > 0) {
+        texColor = texture(albedoTex, fragTexCoord);
+    }
     
-    // Ambient + Diffuse
-    float ambient = 0.3;
-    float lighting = ambient + diffuse * 0.7;
+    // Sadece texture'ı göster (Vertex rengini şimdilik devre dışı bırakalım ki texture net görünsün)
+    vec3 finalColor = texColor.rgb * fragUniforms.baseColor.rgb;
     
-    // Vertex color ile lighting'i birleştir
-    vec3 finalColor = fragColor * lighting;
-    
-    // Final output (alpha = 1.0 opaque)
-    outColor = vec4(finalColor, 1.0);
+    outColor = vec4(finalColor, texColor.a * fragUniforms.baseColor.a);
 }

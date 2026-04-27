@@ -16,6 +16,7 @@ public:
 	void changeScene(std::unique_ptr<Scene> newScene);
 	SDL_GPUDevice* getGPUDevice() const { return m_gpuDevice; }
 	SDL_Window* getWindow() const { return m_window; }
+	float getDeltaTime() const { return m_deltaTime; }
 
 private:
 	SDL_Window* m_window{ nullptr };

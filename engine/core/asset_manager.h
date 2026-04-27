@@ -19,6 +19,15 @@ struct GPUMesh {
     uint32_t indexCount = 0;
 };
 
+// Material - Pipeline + Texture + Properties (DOD uyumlu)
+struct Material {
+    SDL_GPUGraphicsPipeline* pipeline = nullptr;
+    SDL_GPUTexture* albedoTexture = nullptr;
+    SDL_GPUSampler* sampler = nullptr;
+    glm::vec4 baseColor{1.0f, 1.0f, 1.0f, 1.0f};
+    bool hasAlbedoTexture{false};
+};
+
 // Pipeline Cache Key - Pipeline'ları önbelleklemek için
 struct PipelineKey {
     std::string vertexShader;
@@ -280,17 +289,134 @@ public:
     }
 
     // ============================================================================
-    // TEXTURE MANAGEMENT
+    // TEXTURE MANAGEMENT - Staging Buffer ile VRAM'e yükleme
     // ============================================================================
 
-    bool loadTexture(const std::string& name, const std::string& path) {
-        // TODO: SDL_GPUTexture yukleme mantigi eklenecek
-        return true;
+    SDL_GPUTexture* uploadTexture(const std::string& name, const std::string& filepath) {
+        if (!m_gpuDevice) return nullptr;
+
+        // 1. Resmi CPU'ya yükle
+        SDL_Surface* surface = IMG_Load(filepath.c_str());
+        if (!surface) {
+            SDL_Log("HATA: Texture yuklenemedi: %s", filepath.c_str());
+            return nullptr;
+        }
+
+        // 2. Formatı GPU dostu (RGBA32) formata çevir
+        SDL_Surface* rgbaSurface = SDL_ConvertSurface(surface, SDL_PIXELFORMAT_RGBA32);
+        SDL_DestroySurface(surface); // Eskisini sil
+        
+        if (!rgbaSurface) return nullptr;
+
+        // 3. VRAM Texture oluştur
+        SDL_GPUTextureCreateInfo texInfo = {};
+        texInfo.type = SDL_GPU_TEXTURETYPE_2D;
+        texInfo.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+        texInfo.width = rgbaSurface->w;
+        texInfo.height = rgbaSurface->h;
+        texInfo.layer_count_or_depth = 1;
+        texInfo.num_levels = 1;
+        texInfo.sample_count = SDL_GPU_SAMPLECOUNT_1;
+        texInfo.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
+        
+        SDL_GPUTexture* texture = SDL_CreateGPUTexture(m_gpuDevice, &texInfo);
+
+        // 4. Staging Buffer oluştur
+        uint32_t dataSize = rgbaSurface->w * rgbaSurface->h * 4;
+        SDL_GPUTransferBufferCreateInfo transferInfo = {};
+        transferInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+        transferInfo.size = dataSize;
+        SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(m_gpuDevice, &transferInfo);
+
+        // 5. Veriyi Staging Buffer'a kopyala
+        void* transferData = SDL_MapGPUTransferBuffer(m_gpuDevice, transferBuffer, false);
+        if (transferData) {
+            memcpy(transferData, rgbaSurface->pixels, dataSize);
+            SDL_UnmapGPUTransferBuffer(m_gpuDevice, transferBuffer);
+        }
+        SDL_DestroySurface(rgbaSurface);
+
+        // 6. Copy Pass (VRAM'e aktarım)
+        SDL_GPUCommandBuffer* uploadCmd = SDL_AcquireGPUCommandBuffer(m_gpuDevice);
+        SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(uploadCmd);
+
+        SDL_GPUTextureTransferInfo transferLoc = {};
+        transferLoc.transfer_buffer = transferBuffer;
+        transferLoc.offset = 0;
+
+        SDL_GPUTextureRegion texRegion = {};
+        texRegion.texture = texture;
+        texRegion.w = texInfo.width;
+        texRegion.h = texInfo.height;
+        texRegion.d = 1;
+
+        SDL_UploadToGPUTexture(copyPass, &transferLoc, &texRegion, false);
+        SDL_EndGPUCopyPass(copyPass);
+        SDL_SubmitGPUCommandBuffer(uploadCmd);
+
+        // KRITIK: GPU'nun texture upload'ı bitirmesini bekle!
+        SDL_WaitForGPUIdle(m_gpuDevice);
+
+        // 7. Temizlik
+        SDL_ReleaseGPUTransferBuffer(m_gpuDevice, transferBuffer);
+
+        m_textures[name] = texture;
+        SDL_Log("Texture yüklendi: %s (%dx%d)", name.c_str(), texInfo.width, texInfo.height);
+        return texture;
     }
 
     SDL_GPUTexture* getTexture(const std::string& name) {
-        if (m_textures.find(name) == m_textures.end()) return nullptr;
-        return m_textures[name];
+        auto it = m_textures.find(name);
+        return (it != m_textures.end()) ? it->second : nullptr;
+    }
+
+    // ============================================================================
+    // SAMPLER MANAGEMENT
+    // ============================================================================
+
+    SDL_GPUSampler* createSampler(SDL_GPUFilter filter = SDL_GPU_FILTER_LINEAR) {
+        SDL_GPUSamplerCreateInfo samplerInfo = {};
+        samplerInfo.min_filter = filter;
+        samplerInfo.mag_filter = filter;
+        samplerInfo.mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;
+        samplerInfo.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
+        samplerInfo.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
+        samplerInfo.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_REPEAT;
+        
+        SDL_GPUSampler* sampler = SDL_CreateGPUSampler(m_gpuDevice, &samplerInfo);
+        if (sampler) m_samplers.push_back(sampler);
+        return sampler;
+    }
+
+    // ============================================================================
+    // MATERIAL MANAGEMENT
+    // ============================================================================
+
+    Material* createMaterial(const std::string& name, const std::string& pipelineName, 
+                             const std::string& textureName = "", const glm::vec4& baseColor = glm::vec4(1.0f)) 
+    {
+        auto mat = std::make_unique<Material>();
+        mat->pipeline = getPipeline(pipelineName);
+        mat->baseColor = baseColor;
+
+        if (!textureName.empty()) {
+            mat->albedoTexture = getTexture(textureName);
+            mat->hasAlbedoTexture = (mat->albedoTexture != nullptr);
+        }
+
+        if (m_samplers.empty()) {
+            createSampler(); // Default sampler oluştur
+        }
+        mat->sampler = m_samplers[0];
+
+        Material* rawPtr = mat.get();
+        m_materials[name] = std::move(mat);
+        return rawPtr;
+    }
+
+    Material* getMaterial(const std::string& name) {
+        auto it = m_materials.find(name);
+        return (it != m_materials.end()) ? it->second.get() : nullptr;
     }
 
     // ============================================================================
@@ -317,6 +443,15 @@ public:
     // ============================================================================
 
     void cleanup() {
+        // Materials - Smart pointer'lar otomatik temizlenir
+        m_materials.clear();
+
+        // Samplers
+        for (auto sampler : m_samplers) {
+            if (sampler) SDL_ReleaseGPUSampler(m_gpuDevice, sampler);
+        }
+        m_samplers.clear();
+
         // Önce pipeline'ları temizle (shader'lara bağımlı)
         for (auto& [name, pipeline] : m_pipelines) {
             SDL_ReleaseGPUGraphicsPipeline(m_gpuDevice, pipeline);
@@ -359,6 +494,8 @@ private:
     std::map<std::string, SDL_GPUTexture*> m_textures;
     std::map<std::string, TTF_Font*> m_fonts;
     std::vector<SDL_GPUShader*> m_shaders; // Shader cleanup için
+    std::vector<SDL_GPUSampler*> m_samplers; // Sampler cleanup için
+    std::map<std::string, std::unique_ptr<Material>> m_materials; // Material management
 };
 
 } // namespace Astral

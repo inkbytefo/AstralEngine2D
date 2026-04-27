@@ -2,6 +2,7 @@
 #include <SDL3/SDL.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <algorithm>
 #include "../core/entity_manager.h"
 #include "../core/asset_manager.h"
 #include "../ecs/components.h"
@@ -69,7 +70,7 @@ public:
         );
     }
 
-    // Saf ECS Yaklaşımı: Kamerayı entity'lerden bul!
+    // Modern Render Loop - AAA Stratejisi: Sorting & Minimization
     static void update(
         EntityManager& entityManager,
         SDL_GPUCommandBuffer* commandBuffer,
@@ -77,149 +78,120 @@ public:
         SDL_Window* window,
         SDL_GPURenderPass* renderPass = nullptr)
     {
-        // Eğer dışarıdan render pass verilmişse onu kullan
-        if (renderPass) {
-            s_currentRenderPass = renderPass;
-        }
-        
-        if (!s_currentRenderPass) {
-            SDL_Log("RenderSystem: Render pass başlatılmamış!");
-            return;
-        }
+        if (renderPass) s_currentRenderPass = renderPass;
+        if (!s_currentRenderPass) return;
 
-        // 1. Sahnedeki aktif kamerayı bul
+        // 1. Aktif Kamerayı Bul
         glm::mat4 viewMatrix(1.0f);
         glm::mat4 projMatrix(1.0f);
         bool cameraFound = false;
 
         for (auto& entity : entityManager.getEntities()) {
-            // has<T>() template fonksiyonunu kullan
-            if (entity->has<CCamera>()) {
+            if (entity->has<CCamera>() && entity->get<CCamera>().isActive) {
                 auto& cam = entity->get<CCamera>();
-                if (cam.isActive) {
-                    // Dinamik Aspect Ratio - Pencere boyutunu al ve projeksiyon matrisini güncelle
-                    int w, h;
-                    SDL_GetWindowSize(window, &w, &h);
-                    if (w > 0 && h > 0) {
-                        // Projeksiyon matrisini mevcut pencere boyutuna göre güncelle
-                        cam.projection = glm::perspective(
-                            glm::radians(60.0f),
-                            static_cast<float>(w) / static_cast<float>(h),
-                            0.1f,
-                            100.0f
-                        );
-                    }
-                    
-                    viewMatrix = cam.view;
-                    projMatrix = cam.projection;
-                    cameraFound = true;
-                    break;
+                int w, h;
+                SDL_GetWindowSize(window, &w, &h);
+                if (w > 0 && h > 0) {
+                    cam.projection = glm::perspective(glm::radians(60.0f), (float)w / h, 0.1f, 1000.0f);
                 }
+                viewMatrix = cam.view;
+                projMatrix = cam.projection;
+                cameraFound = true;
+                break;
             }
         }
+        if (!cameraFound) return;
 
-        if (!cameraFound) {
-            SDL_LogWarn(0, "RenderSystem: Sahnede aktif bir CCamera bulunamadı!");
-            // Default matrislerle devam et
-            return; // Kamera yoksa çizme
-        }
+        // 2. AAA Sorting: Entities listesini kopyala ve Pipeline > Material > Mesh hiyerarşisine göre sırala
+        // Not: Gerçek bir motorda bu her kare yapılmaz, sadece liste değiştiğinde veya her kare "render proxy"ler üzerinde yapılır.
+        auto renderEntities = entityManager.getEntities();
+        std::sort(renderEntities.begin(), renderEntities.end(), [](const auto& a, const auto& b) {
+            if (!a->template has<CMesh>() || !b->template has<CMesh>()) return false;
+            auto& ma = a->template get<CMesh>();
+            auto& mb = b->template get<CMesh>();
+            
+            // 1. Önce Material ismine göre (dolayısıyla Pipeline'a göre)
+            if (ma.materialName != mb.materialName) return ma.materialName < mb.materialName;
+            // 2. Sonra Mesh ismine göre
+            return ma.meshName < mb.meshName;
+        });
 
-        Astral::AssetManager& assetMgr = Astral::AssetManager::getInstance();
-
-        // 2. State tracking - gereksiz bind'ları önle
+        // 3. State Tracking & Drawing
+        AssetManager& assetMgr = AssetManager::getInstance();
         SDL_GPUGraphicsPipeline* lastPipeline = nullptr;
+        std::string lastMaterialName = "";
         std::string lastMeshName = "";
 
-        // 3. Tüm mesh'li entity'leri çiz
-        for (auto& entity : entityManager.getEntities()) {
+        s_drawCalls = 0;
+
+        for (auto& entity : renderEntities) {
             if (!entity->has<CMesh>() || !entity->has<CTransform>()) continue;
 
-            // Mesh ve Pipeline al
             auto& meshComp = entity->get<CMesh>();
-            Astral::GPUMesh* mesh = assetMgr.getMesh(meshComp.meshName);
-            SDL_GPUGraphicsPipeline* pipeline = assetMgr.getPipeline(meshComp.materialName);
+            Material* material = assetMgr.getMaterial(meshComp.materialName);
+            GPUMesh* mesh = assetMgr.getMesh(meshComp.meshName);
 
-            if (!mesh || !pipeline) continue;
+            if (!mesh || !material || !material->pipeline) continue;
 
-            // ============================================================
-            // STATE CHANGE MINIMIZATION - Sadece değişenleri bind et
-            // ============================================================
-
-            // Pipeline değiştiyse bind et
-            if (pipeline != lastPipeline) {
-                SDL_BindGPUGraphicsPipeline(s_currentRenderPass, pipeline);
-                lastPipeline = pipeline;
+            // --- STATE MINIMIZATION ---
+            
+            // A. Pipeline Binding (Context Switch - En Pahalı)
+            if (material->pipeline != lastPipeline) {
+                SDL_BindGPUGraphicsPipeline(s_currentRenderPass, material->pipeline);
+                lastPipeline = material->pipeline;
             }
 
-            // Mesh değiştiyse vertex/index buffer'ları bind et
+            // B. Material Binding (Texture & Uniforms - Orta)
+            if (meshComp.materialName != lastMaterialName) {
+                // Texture Bind (Set 2)
+                if (material->hasAlbedoTexture) {
+                    SDL_GPUTextureSamplerBinding texBinding = { material->albedoTexture, material->sampler };
+                    SDL_BindGPUFragmentSamplers(s_currentRenderPass, 0, &texBinding, 1);
+                }
+
+                // Fragment Uniform (Set 3)
+                struct FragmentUniform {
+                    glm::vec4 baseColor;
+                    int hasTexture;
+                    int _padding[3];
+                } fragData = { material->baseColor, material->hasAlbedoTexture ? 1 : 0 };
+                
+                // Debug log (sadece değişimde)
+                SDL_Log("RenderSystem: Material bind ediliyor: %s (Texture: %d)", 
+                        meshComp.materialName.c_str(), fragData.hasTexture);
+
+                SDL_PushGPUFragmentUniformData(commandBuffer, 0, &fragData, sizeof(FragmentUniform));
+                lastMaterialName = meshComp.materialName;
+            }
+
+            // C. Mesh Binding (Buffers - Ucuz)
             if (meshComp.meshName != lastMeshName) {
-                // Vertex buffer bind
-                SDL_GPUBufferBinding vertexBinding = {};
-                vertexBinding.buffer = mesh->vertexBuffer;
-                vertexBinding.offset = 0;
-                
-                SDL_BindGPUVertexBuffers(
-                    s_currentRenderPass,
-                    0, // first slot
-                    &vertexBinding,
-                    1  // num bindings
-                );
+                SDL_GPUBufferBinding vBinding = { mesh->vertexBuffer, 0 };
+                SDL_BindGPUVertexBuffers(s_currentRenderPass, 0, &vBinding, 1);
 
-                // Index buffer bind
-                SDL_GPUBufferBinding indexBinding = {};
-                indexBinding.buffer = mesh->indexBuffer;
-                indexBinding.offset = 0;
-                
-                SDL_BindGPUIndexBuffer(
-                    s_currentRenderPass,
-                    &indexBinding,
-                    SDL_GPU_INDEXELEMENTSIZE_32BIT
-                );
-
+                SDL_GPUBufferBinding iBinding = { mesh->indexBuffer, 0 };
+                SDL_BindGPUIndexBuffer(s_currentRenderPass, &iBinding, SDL_GPU_INDEXELEMENTSIZE_32BIT);
                 lastMeshName = meshComp.meshName;
             }
 
-            // ============================================================
-            // UNIFORM DATA - MVP Matrisleri gönder (Push Constants)
-            // ============================================================
-
-            // Model matrix hesapla (Transform'dan)
+            // --- PER-OBJECT DATA (Push Constants) ---
             auto& transform = entity->get<CTransform>();
-            glm::mat4 model = glm::mat4(1.0f);
-            model = glm::translate(model, transform.pos);
-            model = glm::rotate(model, transform.rotation.x, glm::vec3(1, 0, 0));
-            model = glm::rotate(model, transform.rotation.y, glm::vec3(0, 1, 0));
-            model = glm::rotate(model, transform.rotation.z, glm::vec3(0, 0, 1));
+            glm::mat4 model = glm::translate(glm::mat4(1.0f), transform.pos);
+            model = glm::rotate(model, transform.rotation.x, {1,0,0});
+            model = glm::rotate(model, transform.rotation.y, {0,1,0});
+            model = glm::rotate(model, transform.rotation.z, {0,0,1});
             model = glm::scale(model, transform.scale);
 
-            UniformData uniforms = {};
-            uniforms.model = model;
-            uniforms.view = viewMatrix;
-            uniforms.projection = projMatrix;
+            UniformData uniforms = { model, viewMatrix, projMatrix };
+            SDL_PushGPUVertexUniformData(commandBuffer, 0, &uniforms, sizeof(UniformData));
 
-            // Vertex shader'a uniform data push et
-            // SDL_GPU bunu command buffer'a direkt yazar (push constant benzeri)
-            SDL_PushGPUVertexUniformData(
-                commandBuffer,
-                0, // slot index
-                &uniforms,
-                sizeof(UniformData)
-            );
-
-            // ============================================================
-            // DRAW CALL - Indexed draw
-            // ============================================================
-
-            SDL_DrawGPUIndexedPrimitives(
-                s_currentRenderPass,
-                mesh->indexCount,  // num_indices
-                1,                 // num_instances
-                0,                 // first_index
-                0,                 // vertex_offset
-                0                  // first_instance
-            );
+            // --- DRAW ---
+            SDL_DrawGPUIndexedPrimitives(s_currentRenderPass, mesh->indexCount, 1, 0, 0, 0);
+            s_drawCalls++;
         }
     }
+
+    static int getDrawCalls() { return s_drawCalls; }
 
     // Render pass'i bitir
     static void endRenderPass() {
@@ -257,6 +229,7 @@ public:
 
 private:
     static inline SDL_GPURenderPass* s_currentRenderPass = nullptr;
+    static inline int s_drawCalls = 0;
 };
 
 } // namespace Astral
