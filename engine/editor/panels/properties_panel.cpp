@@ -18,9 +18,32 @@ void PropertiesPanel::draw()
             if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen))
             {
                 auto& transform = m_selectedEntity->get<CTransform>();
-                ImGui::DragFloat3("Position", glm::value_ptr(transform.pos), 0.1f);
-                ImGui::DragFloat3("Rotation", glm::value_ptr(transform.rotation), 1.0f);
-                ImGui::DragFloat3("Scale", glm::value_ptr(transform.scale), 0.1f);
+                
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2, 2));
+                ImGui::Columns(2);
+                ImGui::Separator();
+                
+                ImGui::Text("Position"); ImGui::NextColumn();
+                ImGui::PushItemWidth(-1);
+                ImGui::DragFloat3("##Pos", glm::value_ptr(transform.pos), 0.1f);
+                ImGui::PopItemWidth();
+                ImGui::NextColumn();
+                
+                ImGui::Text("Rotation"); ImGui::NextColumn();
+                ImGui::PushItemWidth(-1);
+                ImGui::DragFloat3("##Rot", glm::value_ptr(transform.rotation), 1.0f);
+                ImGui::PopItemWidth();
+                ImGui::NextColumn();
+                
+                ImGui::Text("Scale"); ImGui::NextColumn();
+                ImGui::PushItemWidth(-1);
+                ImGui::DragFloat3("##Scale", glm::value_ptr(transform.scale), 0.1f);
+                ImGui::PopItemWidth();
+                ImGui::NextColumn();
+                
+                ImGui::Columns(1);
+                ImGui::Separator();
+                ImGui::PopStyleVar();
             }
         }
 
@@ -29,8 +52,8 @@ void PropertiesPanel::draw()
             if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen))
             {
                 auto& camera = m_selectedEntity->get<CCamera>();
-                ImGui::Checkbox("Active##Camera", &camera.isActive);
-                ImGui::DragFloat("Aspect Ratio", &camera.aspectRatio, 0.01f, 0.1f, 10.0f);
+                ImGui::Checkbox("Active", &camera.isActive);
+                ImGui::DragFloat("FOV", &camera.aspectRatio, 0.01f); // Placeholder for FOV
             }
         }
 
@@ -39,9 +62,23 @@ void PropertiesPanel::draw()
             if (ImGui::CollapsingHeader("Light", ImGuiTreeNodeFlags_DefaultOpen))
             {
                 auto& light = m_selectedEntity->get<CLight>();
-                ImGui::DragFloat("Intensity", &light.intensity, 0.1f, 0.0f, 10.0f);
                 ImGui::ColorEdit3("Color", glm::value_ptr(light.color));
+                ImGui::DragFloat("Intensity", &light.intensity, 0.1f, 0.0f, 100.0f);
             }
+        }
+        
+        ImGui::Spacing();
+        if (ImGui::Button("Add Component", ImVec2(-1, 0)))
+        {
+            ImGui::OpenPopup("AddComponent");
+        }
+        
+        if (ImGui::BeginPopup("AddComponent"))
+        {
+            if (ImGui::MenuItem("Camera")) { /* Add Camera */ }
+            if (ImGui::MenuItem("Light")) { /* Add Light */ }
+            if (ImGui::MenuItem("Mesh")) { /* Add Mesh */ }
+            ImGui::EndPopup();
         }
     }
     else

@@ -18,7 +18,13 @@ public:
     void draw() override;
     const char* getName() const override { return "Hierarchy"; }
 
-    std::shared_ptr<Astral::Entity> getSelectedEntity() const { return m_selectedEntity; }
+    void onEntitySelected(std::shared_ptr<Astral::Entity> entity) override {
+        m_selectedEntity = entity;
+    }
+
+    void onEntityDeselected() override {
+        m_selectedEntity = nullptr;
+    }
 
     /**
      * @brief Set callback for when selection changes.

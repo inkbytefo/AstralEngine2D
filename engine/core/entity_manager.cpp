@@ -31,6 +31,14 @@ void EntityManager::update()
 		removeDeadEntites(vec);
 }
 
+void EntityManager::clear()
+{
+	m_entities.clear();
+	m_toAdd.clear();
+	m_entityMap.clear();
+	m_totalEntites = 0;
+}
+
 std::shared_ptr<Entity> EntityManager::addEntity(const std::string& tag)
 {
 	// Yeni varlığı oluşturur ancak güvenli bir şekilde eklenmesi için m_toAdd listesine koyar.

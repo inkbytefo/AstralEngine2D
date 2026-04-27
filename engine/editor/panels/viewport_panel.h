@@ -9,10 +9,36 @@ class EntityManager;
 class IRenderer;
 }
 
+// Forward declarations
+class EditorManager;
+
+namespace Astral {
+    class Entity;
+}
+
 // Forward declaration for ImGuizmo
 namespace ImGuizmo {
     enum OPERATION : int;
 }
+
+/**
+ * @brief Editor Camera class for viewport manipulation.
+ */
+class EditorCamera {
+public:
+    glm::vec3 position = { 0.0f, -10.0f, 5.0f };
+    float yaw = 90.0f;   // Looking along +Y
+    float pitch = 0.0f;
+    float fov = 60.0f;
+    float nearPlane = 0.1f;
+    float farPlane = 1000.0f;
+    float movementSpeed = 10.0f;
+    float mouseSensitivity = 0.1f;
+
+    glm::mat4 getViewMatrix() const;
+    glm::mat4 getProjectionMatrix(float aspectRatio) const;
+    void update(float deltaTime, bool isHovered);
+};
 
 /**
  * @brief Viewport Panel - displays 3D scene and handles gizmo manipulation.
@@ -46,14 +72,26 @@ public:
      */
     void setDebugInfo(float fps, int drawCalls) { m_fps = fps; m_drawCallCount = drawCalls; }
 
+    /**
+     * @brief Set editor manager reference for Play/Stop functionality
+     */
+    void setEditorManager(EditorManager* editorManager) { m_editorManager = editorManager; }
+
+    /**
+     * @brief Get Editor Camera reference
+     */
+    EditorCamera& getEditorCamera() { return m_editorCamera; }
+
 private:
     void drawGizmoModeButtons();
     void drawViewportInfo();
+    void drawPlayControls();
     void handleKeyboardShortcuts();
 
 private:
     Astral::IRenderer* m_renderer{ nullptr };
     Astral::EntityManager* m_entityManager{ nullptr };
+    EditorManager* m_editorManager{ nullptr };
     std::shared_ptr<Astral::Entity> m_selectedEntity{ nullptr };
     SDL_GPUTexture* m_sceneTexture{ nullptr };
     uint32_t m_viewportWidth{ 1280 };
@@ -65,4 +103,7 @@ private:
     // Debug info
     float m_fps{ 0.0f };
     int m_drawCallCount{ 0 };
+
+    // Editor Camera
+    EditorCamera m_editorCamera;
 };

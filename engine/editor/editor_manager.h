@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <string>
 #include <functional>
+#include <glm/glm.hpp>
 
 namespace Astral {
     class EntityManager;
@@ -14,6 +15,15 @@ namespace Astral {
 
 class IEditorPanel;
 class ViewportPanel;
+
+/**
+ * @brief Scene simulation state
+ */
+enum class SceneState {
+    Edit,   // Normal editör modu - sadece render ve transform sistemleri çalışır
+    Play,   // Simülasyon çalışıyor - tüm sistemler çalışır
+    Pause   // Simülasyon duraklatılmış - sistemler çalışmaz ama state korunur
+};
 
 class EditorManager {
 public:
@@ -81,6 +91,31 @@ public:
      */
     void setDebugInfo(float fps, int drawCalls);
 
+    /**
+     * @brief Get current scene state (Edit, Play, Pause)
+     */
+    SceneState getSceneState() const { return m_sceneState; }
+
+    /**
+     * @brief Set scene state
+     */
+    void setSceneState(SceneState state) { m_sceneState = state; }
+
+    /**
+     * @brief Get scene snapshot (for Play/Stop functionality)
+     */
+    const std::string& getSceneSnapshot() const { return m_sceneSnapshot; }
+
+    /**
+     * @brief Set scene snapshot
+     */
+    void setSceneSnapshot(const std::string& snapshot) { m_sceneSnapshot = snapshot; }
+
+    /**
+     * @brief Get Editor Camera matrices if possible
+     */
+    bool getEditorCameraMatrices(glm::mat4& view, glm::mat4& proj, glm::vec3& pos);
+
 private:
     void setupDockspace();
 
@@ -88,4 +123,6 @@ private:
     std::unordered_map<std::string, std::unique_ptr<IEditorPanel>> m_panels;
     std::shared_ptr<Astral::Entity> m_selectedEntity{ nullptr };
     bool m_dockspaceInitialized{ false };
+    SceneState m_sceneState{ SceneState::Edit };
+    std::string m_sceneSnapshot;  // JSON snapshot for Play/Stop
 };

@@ -73,18 +73,32 @@ void SceneHierarchyPanel::drawContextMenu(std::shared_ptr<Astral::Entity> entity
     {
         if (ImGui::MenuItem("Delete"))
         {
-            // TODO: Implement entity deletion
-            m_contextMenuEntity = nullptr;
+            entity->destroy();
+            if (m_selectedEntity == entity) m_selectedEntity = nullptr;
         }
 
         if (ImGui::MenuItem("Duplicate"))
         {
-            // TODO: Implement entity duplication
+            // Simple duplication logic
+            auto newEntity = m_entityManager->addEntity(entity->tag() + "_Copy");
+            if (entity->has<CTransform>()) {
+                auto& t = entity->get<CTransform>();
+                auto& nt = newEntity->add<CTransform>(t.pos, t.velocity);
+                nt.rotation = t.rotation;
+                nt.scale = t.scale;
+            }
         }
+
+        ImGui::Separator();
 
         if (ImGui::MenuItem("Create Empty Child"))
         {
-            // TODO: Implement creating empty child entity
+            auto child = m_entityManager->addEntity("Empty");
+            auto& ct = child->add<CTransform>();
+            ct.parent = entity;
+            if (entity->has<CTransform>()) {
+                entity->get<CTransform>().children.push_back(child);
+            }
         }
 
         ImGui::EndPopup();
@@ -97,9 +111,18 @@ void SceneHierarchyPanel::draw()
 
     if (m_entityManager)
     {
+        // Add Entity button
+        if (ImGui::Button("Add Entity", ImVec2(-1, 0)))
+        {
+            m_entityManager->addEntity("New Entity")->add<CTransform>();
+        }
+        ImGui::Separator();
+
         // Draw root entities (entities without parent)
         for (auto& entity : m_entityManager->getEntities())
         {
+            if (!entity->isActive()) continue;
+
             if (entity->has<CTransform>())
             {
                 auto& transform = entity->get<CTransform>();
@@ -113,11 +136,15 @@ void SceneHierarchyPanel::draw()
                 drawEntityNode(entity);
             }
         }
-
-        // Handle context menu
-        if (m_contextMenuEntity)
+        
+        // Right-click on empty space
+        if (ImGui::BeginPopupContextWindow(nullptr, ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
         {
-            drawContextMenu(m_contextMenuEntity);
+            if (ImGui::MenuItem("Create Empty Entity"))
+            {
+                m_entityManager->addEntity("Empty")->add<CTransform>();
+            }
+            ImGui::EndPopup();
         }
 
         // Clear selection on empty space click

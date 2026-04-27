@@ -39,16 +39,24 @@ void RenderSystem::render(IRenderer* renderer, Astral::EntityManager& entityMana
     glm::vec3 camPos(0.0f);
     bool cameraFound = false;
 
-    for (auto& entity : entityManager.view<CCamera, CTransform>()) {
-        auto& cam = entity->get<CCamera>();
-        if (cam.isActive) {
-            viewMatrix = cam.view;
-            projMatrix = cam.projection;
-            camPos = glm::vec3(entity->get<CTransform>().globalMatrix[3]);
-            cameraFound = true;
-            break;
+    if (m_useCameraOverride) {
+        viewMatrix = m_overrideView;
+        projMatrix = m_overrideProj;
+        camPos = m_overridePos;
+        cameraFound = true;
+    } else {
+        for (auto& entity : entityManager.view<CCamera, CTransform>()) {
+            auto& cam = entity->get<CCamera>();
+            if (cam.isActive) {
+                viewMatrix = cam.view;
+                projMatrix = cam.projection;
+                camPos = glm::vec3(entity->get<CTransform>().globalMatrix[3]);
+                cameraFound = true;
+                break;
+            }
         }
     }
+    
     if (!cameraFound) return;
 
     // 2. Işık verisini bul

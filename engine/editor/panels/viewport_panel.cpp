@@ -2,18 +2,71 @@
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "viewport_panel.h"
 #include "imgui.h"
+#include "imgui_internal.h"
 #include "ImGuizmo.h"
 #include "core/entity_manager.h"
+#include "core/scene_serializer.h"
 #include "ecs/entity.h"
 #include "ecs/components.h"
 #include "renderer/renderer.h"
+#include "editor/editor_manager.h"
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include "systems/render_system.h"
 #include <SDL3/SDL.h>
 
+// --- EditorCamera Implementation ---
+
+glm::mat4 EditorCamera::getViewMatrix() const {
+    glm::vec3 front;
+    front.x = cos(glm::radians(pitch)) * cos(glm::radians(yaw));
+    front.y = cos(glm::radians(pitch)) * sin(glm::radians(yaw));
+    front.z = sin(glm::radians(pitch));
+    front = glm::normalize(front);
+    
+    return glm::lookAt(position, position + front, glm::vec3(0, 0, 1));
+}
+
+glm::mat4 EditorCamera::getProjectionMatrix(float aspectRatio) const {
+    return glm::perspective(glm::radians(fov), aspectRatio, nearPlane, farPlane);
+}
+
+void EditorCamera::update(float deltaTime, bool isHovered) {
+    if (!isHovered) return;
+
+    ImGuiIO& io = ImGui::GetIO();
+    
+    // Right-click look
+    if (ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
+        yaw += io.MouseDelta.x * mouseSensitivity;
+        pitch -= io.MouseDelta.y * mouseSensitivity;
+        pitch = glm::clamp(pitch, -89.0f, 89.0f);
+    }
+
+    // WASD Movement
+    glm::vec3 front;
+    front.x = cos(glm::radians(pitch)) * cos(glm::radians(yaw));
+    front.y = cos(glm::radians(pitch)) * sin(glm::radians(yaw));
+    front.z = sin(glm::radians(pitch));
+    front = glm::normalize(front);
+
+    glm::vec3 right = glm::normalize(glm::cross(front, glm::vec3(0, 0, 1)));
+    
+    float speed = movementSpeed * deltaTime;
+    if (ImGui::IsKeyDown(ImGuiKey_LeftShift)) speed *= 3.0f; // Turbo
+
+    if (ImGui::IsKeyDown(ImGuiKey_W)) position += front * speed;
+    if (ImGui::IsKeyDown(ImGuiKey_S)) position -= front * speed;
+    if (ImGui::IsKeyDown(ImGuiKey_A)) position -= right * speed;
+    if (ImGui::IsKeyDown(ImGuiKey_D)) position += right * speed;
+    if (ImGui::IsKeyDown(ImGuiKey_E)) position.z += speed;
+    if (ImGui::IsKeyDown(ImGuiKey_Q)) position.z -= speed;
+}
+
 ViewportPanel::ViewportPanel(Astral::IRenderer* renderer, Astral::EntityManager* entityManager)
-    : m_renderer(renderer), m_entityManager(entityManager)
+    : m_renderer(renderer), m_entityManager(entityManager), m_gizmoMode(7) // Default to TRANSLATE (7 = X|Y|Z)
 {
 }
 
@@ -67,6 +120,95 @@ void ViewportPanel::drawViewportInfo()
     ImGui::Separator();
 }
 
+void ViewportPanel::drawPlayControls()
+{
+    if (!m_editorManager || !m_entityManager) return;
+    
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Text("Simulation:");
+    ImGui::SameLine();
+    
+    SceneState currentState = m_editorManager->getSceneState();
+    
+    // Play button
+    if (currentState == SceneState::Edit)
+    {
+        if (ImGui::Button("Play", ImVec2(60, 0)))
+        {
+            // Snapshot al
+            std::string snapshot = SceneSerializer::createSnapshot(*m_entityManager);
+            m_editorManager->setSceneSnapshot(snapshot);
+            m_editorManager->setSceneState(SceneState::Play);
+            SDL_Log("Simulation started - Play mode");
+        }
+    }
+    else
+    {
+        ImGui::BeginDisabled();
+        ImGui::Button("Play", ImVec2(60, 0));
+        ImGui::EndDisabled();
+    }
+    
+    ImGui::SameLine();
+    
+    // Pause button
+    if (currentState == SceneState::Play)
+    {
+        if (ImGui::Button("Pause", ImVec2(60, 0)))
+        {
+            m_editorManager->setSceneState(SceneState::Pause);
+            SDL_Log("Simulation paused");
+        }
+    }
+    else if (currentState == SceneState::Pause)
+    {
+        if (ImGui::Button("Resume", ImVec2(60, 0)))
+        {
+            m_editorManager->setSceneState(SceneState::Play);
+            SDL_Log("Simulation resumed");
+        }
+    }
+    else
+    {
+        ImGui::BeginDisabled();
+        ImGui::Button("Pause", ImVec2(60, 0));
+        ImGui::EndDisabled();
+    }
+    
+    ImGui::SameLine();
+    
+    // Stop button
+    if (currentState != SceneState::Edit)
+    {
+        if (ImGui::Button("Stop", ImVec2(60, 0)))
+        {
+            // Snapshot'tan restore et
+            const std::string& snapshot = m_editorManager->getSceneSnapshot();
+            if (!snapshot.empty())
+            {
+                SceneSerializer::restoreFromSnapshot(snapshot, *m_entityManager);
+                SDL_Log("Simulation stopped - Scene restored");
+            }
+            m_editorManager->setSceneState(SceneState::Edit);
+        }
+    }
+    else
+    {
+        ImGui::BeginDisabled();
+        ImGui::Button("Stop", ImVec2(60, 0));
+        ImGui::EndDisabled();
+    }
+    
+    // Display current state
+    ImGui::SameLine();
+    ImGui::Text("| State: %s", 
+        currentState == SceneState::Edit ? "Edit" :
+        currentState == SceneState::Play ? "Play" : "Pause");
+    
+    ImGui::Separator();
+}
+
 void ViewportPanel::handleKeyboardShortcuts()
 {
     ImGuiIO& io = ImGui::GetIO();
@@ -95,11 +237,71 @@ void ViewportPanel::draw()
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::Begin("Viewport");
     
-    // Draw gizmo mode buttons at the top
+    // Draw toolbar at the top of the viewport
     ImGui::PopStyleVar();
-    drawGizmoModeButtons();
-    drawViewportInfo();
+    
+    if (ImGui::BeginChild("ViewportToolbar", ImVec2(0, 30), true, ImGuiWindowFlags_NoScrollbar))
+    {
+        ImGui::SetCursorPosY(5);
+        ImGui::Indent(5);
+        
+        // Gizmo Modes
+        bool isTranslate = (m_gizmoMode & 7) != 0 && (m_gizmoMode & 112) == 0;
+        bool isRotate = (m_gizmoMode & 112) != 0;
+        bool isScale = (m_gizmoMode & 896) != 0;
+
+        if (ImGui::RadioButton("Translate", isTranslate)) m_gizmoMode = 7; // TRANSLATE
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Rotate", isRotate)) m_gizmoMode = 120; // ROTATE
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Scale", isScale)) m_gizmoMode = 896; // SCALE
+        
+        ImGui::SameLine();
+        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+        ImGui::SameLine();
+        
+        // Play Controls
+        SceneState currentState = m_editorManager->getSceneState();
+        if (currentState == SceneState::Edit)
+        {
+            if (ImGui::Button("Play")) {
+                m_editorManager->deselectEntity();
+                std::string snapshot = SceneSerializer::createSnapshot(*m_entityManager);
+                m_editorManager->setSceneSnapshot(snapshot);
+                m_editorManager->setSceneState(SceneState::Play);
+            }
+        }
+        else
+        {
+            if (ImGui::Button("Stop")) {
+                m_editorManager->deselectEntity();
+                const std::string& snapshot = m_editorManager->getSceneSnapshot();
+                if (!snapshot.empty()) SceneSerializer::restoreFromSnapshot(snapshot, *m_entityManager);
+                m_editorManager->setSceneState(SceneState::Edit);
+            }
+            ImGui::SameLine();
+            if (currentState == SceneState::Play) {
+                if (ImGui::Button("Pause")) m_editorManager->setSceneState(SceneState::Pause);
+            } else {
+                if (ImGui::Button("Resume")) m_editorManager->setSceneState(SceneState::Play);
+            }
+        }
+        
+        ImGui::SameLine();
+        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+        ImGui::SameLine();
+        
+        // Stats
+        ImGui::TextDisabled("FPS: %.1f | Draw Calls: %d", m_fps, m_drawCallCount);
+    }
+    ImGui::EndChild();
+
     handleKeyboardShortcuts();
+    
+    // Update Editor Camera
+    bool isViewportHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows);
+    m_editorCamera.update(ImGui::GetIO().DeltaTime, isViewportHovered);
+
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     
     // 1. Resizing check
@@ -140,30 +342,58 @@ void ViewportPanel::draw()
     }
 
     // 2. Render Scene Texture to ImGui
-    if (m_sceneTexture && m_viewportWidth >= 64 && m_viewportHeight >= 64 && viewportPanelSize.x > 0 && viewportPanelSize.y > 0)
+    ImVec2 viewportPos = ImGui::GetCursorScreenPos();
+    
+    if (m_sceneTexture != nullptr && m_viewportWidth >= 64 && m_viewportHeight >= 64 && viewportPanelSize.x > 0 && viewportPanelSize.y > 0)
     {
-        ImGui::Image((ImTextureID)(intptr_t)m_sceneTexture, viewportPanelSize);
+        // Texture'ı ImGui'ye göster
+        ImGui::Image(
+            (ImTextureID)(intptr_t)m_sceneTexture,
+            viewportPanelSize,
+            ImVec2(0, 1),      // UV min (sol-alt)
+            ImVec2(1, 0)       // UV max (sağ-üst)
+        );
+        
+        // Eğer bir nesne seçiliyse viewport etrafına ince bir çizgi çek (Unreal stili)
+        if (m_selectedEntity)
+        {
+            ImGui::GetWindowDrawList()->AddRect(
+                viewportPos, 
+                ImVec2(viewportPos.x + viewportPanelSize.x, viewportPos.y + viewportPanelSize.y), 
+                IM_COL32(255, 165, 0, 150), // Turuncu
+                0.0f, 0, 2.0f
+            );
+        }
     }
     else
     {
-        // Texture henüz hazır değilse placeholder göster
-        ImGui::Text("Viewport initializing...");
+        ImGui::Dummy(viewportPanelSize);
+        ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(10, 10));
+        ImGui::TextColored(ImVec4(1, 1, 0, 1), "Scene texture initializing...");
     }
 
     // 3. ImGuizmo Setup
     ImGuizmo::SetOrthographic(false);
     ImGuizmo::SetDrawlist();
-    
-    float windowWidth = (float)ImGui::GetWindowWidth();
-    float windowHeight = (float)ImGui::GetWindowHeight();
-    ImGuizmo::SetRect(ImGui::GetWindowPos().x, ImGui::GetWindowPos().y, windowWidth, windowHeight);
+    ImGuizmo::SetRect(viewportPos.x, viewportPos.y, viewportPanelSize.x, viewportPanelSize.y);
 
     // 4. Find Active Camera
     glm::mat4 view(1.0f);
     glm::mat4 projection(1.0f);
-    bool cameraFound = false;
+    std::shared_ptr<Astral::Entity> activeCameraEntity = nullptr;
+    float aspectRatio = viewportPanelSize.x / viewportPanelSize.y;
 
-    if (m_entityManager)
+    if (m_editorManager->getSceneState() == SceneState::Edit)
+    {
+        view = m_editorCamera.getViewMatrix();
+        projection = m_editorCamera.getProjectionMatrix(aspectRatio);
+        
+        // Render sistemine kamera override'ı geç
+        // Not: RenderSystem'e erişmek için EditorManager üzerinden veya başka bir yoldan geçebiliriz.
+        // Ama RenderSystem zaten App içinde güncelleniyor. 
+        // ViewportPanel her frame RenderSystem'e override set etmeli.
+    }
+    else if (m_entityManager)
     {
         for (auto& entity : m_entityManager->getEntities())
         {
@@ -174,15 +404,24 @@ void ViewportPanel::draw()
                 {
                     view = cam.view;
                     projection = cam.projection;
-                    cameraFound = true;
+                    activeCameraEntity = entity;
                     break;
                 }
             }
         }
     }
 
+    if (activeCameraEntity)
+    {
+        // Draw View Manipulator (Orientation Gizmo like Blender/Unreal)
+        float viewManipSize = 128.f;
+        float padding = 10.f;
+        ImVec2 viewManipPos = ImVec2(viewportPos.x + viewportPanelSize.x - viewManipSize - padding, viewportPos.y + padding);
+        ImGuizmo::ViewManipulate(glm::value_ptr(view), 8.0f, viewManipPos, ImVec2(viewManipSize, viewManipSize), 0x00000000);
+    }
+
     // 5. Gizmo Manipulation
-    if (cameraFound && m_selectedEntity && m_selectedEntity->has<CTransform>())
+    if (activeCameraEntity && m_selectedEntity && m_selectedEntity->has<CTransform>())
     {
         auto& transform = m_selectedEntity->get<CTransform>();
         glm::mat4 globalMatrix = transform.globalMatrix;

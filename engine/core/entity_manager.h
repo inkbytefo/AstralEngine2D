@@ -18,6 +18,8 @@ class EntityManager
 public:
 	// Silinmiş varlıkları temizler ve yeni bekleyen varlıkları ana listeye dahil eder.
 	void update();
+	// Tüm varlıkları temizler ve ID sayacını sıfırlar.
+	void clear();
 	// Yeni bir varlık oluşturur ve bir sonraki karede sisteme dahil edilmek üzere beklemeye alır.
 	std::shared_ptr<Entity>		addEntity(const std::string& tag);
 	

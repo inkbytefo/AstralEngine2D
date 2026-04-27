@@ -91,20 +91,12 @@ void App::run()
 			m_systemManager.init(m_scene->getEntityManager());
 
 			// Register editor panels with the current scene's entity manager
-			static bool panelsRegistered = false;
-			if (!panelsRegistered && m_editorManager)
-			{
-				panelsRegistered = true;
-				
-				// Register Hierarchy Panel
-				m_editorManager->registerPanel(std::make_unique<SceneHierarchyPanel>(&m_scene->getEntityManager()));
-				
-				// Register Properties Panel
-				m_editorManager->registerPanel(std::make_unique<PropertiesPanel>());
-				
-				// Register Viewport Panel
-				m_editorManager->registerPanel(std::make_unique<ViewportPanel>(m_renderer.get(), &m_scene->getEntityManager()));
-			}
+			m_editorManager->registerPanel(std::make_unique<SceneHierarchyPanel>(&m_scene->getEntityManager()));
+			m_editorManager->registerPanel(std::make_unique<PropertiesPanel>());
+			
+			auto viewportPanel = std::make_unique<ViewportPanel>(m_renderer.get(), &m_scene->getEntityManager());
+			viewportPanel->setEditorManager(m_editorManager.get());
+			m_editorManager->registerPanel(std::move(viewportPanel));
 
 			if (auto* is = m_systemManager.getSystem<Astral::InputSystem>()) {
 				is->setActionCallback([this](const std::string& name, bool started) {
@@ -136,7 +128,11 @@ void App::run()
 
 		m_editorManager->newFrame();
 
-		m_scene->update(m_deltaTime);
+		// Scene update - sadece Play modunda
+		SceneState sceneState = m_editorManager->getSceneState();
+		if (sceneState == SceneState::Play) {
+			m_scene->update(m_deltaTime);
+		}
 		
 		SDL_FColor clearColor = { 0.1f, 0.15f, 0.2f, 1.0f };
 
@@ -144,7 +140,29 @@ void App::run()
 			// 1. Sahneyi Offscreen Dokuya Çiz
 			m_renderer->beginScenePass(clearColor);
 			if (m_scene) {
-				m_systemManager.update(m_scene->getEntityManager(), m_deltaTime);
+				// Sistemleri seçici çalıştır
+				if (sceneState == SceneState::Play) {
+					// Play modunda tüm sistemler çalışsın ve sahne kamerasını kullansın
+					if (auto* renderSys = m_systemManager.getSystem<Astral::RenderSystem>()) {
+						renderSys->clearCameraOverride();
+					}
+					m_systemManager.update(m_scene->getEntityManager(), m_deltaTime);
+				} else if (sceneState == SceneState::Edit || sceneState == SceneState::Pause) {
+					// Edit/Pause modunda sadece render ve transform sistemleri çalışsın
+					if (auto* renderSys = m_systemManager.getSystem<Astral::RenderSystem>()) {
+						// Editör kamerasını ayarla
+						glm::mat4 view, proj;
+						glm::vec3 pos;
+						if (m_editorManager->getEditorCameraMatrices(view, proj, pos)) {
+							renderSys->setCameraOverride(view, proj, pos);
+						}
+						
+						renderSys->update(m_scene->getEntityManager(), m_deltaTime);
+					}
+					if (auto* transformSys = m_systemManager.getSystem<Astral::TransformSystem>()) {
+						transformSys->update(m_scene->getEntityManager(), m_deltaTime);
+					}
+				}
 			}
 			m_renderer->endScenePass();
 

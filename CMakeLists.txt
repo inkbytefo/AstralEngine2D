@@ -26,6 +26,8 @@ set(SOURCES
     "engine/core/entity_manager.h"
     "engine/core/entity_manager.cpp"
     "engine/core/gltf_loader.cpp"
+    "engine/core/scene_serializer.h"
+    "engine/core/scene_serializer.cpp"
     "engine/ecs/entity.h"
     "engine/ecs/components.h"
     "engine/math/vertex.h"

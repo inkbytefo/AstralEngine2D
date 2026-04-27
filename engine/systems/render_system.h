@@ -35,6 +35,15 @@ public:
     void setWindow(SDL_Window* window) { m_window = window; }
     void setRenderer(IRenderer* renderer) { m_renderer = renderer; }
 
+    // Camera override for Editor
+    void setCameraOverride(const glm::mat4& view, const glm::mat4& projection, const glm::vec3& position) {
+        m_overrideView = view;
+        m_overrideProj = projection;
+        m_overridePos = position;
+        m_useCameraOverride = true;
+    }
+    void clearCameraOverride() { m_useCameraOverride = false; }
+
     int32_t getPriority() const override { return 100; }
     const char* getName() const override { return "RenderSystem"; }
 
@@ -48,6 +57,12 @@ private:
     AssetManager* m_assetManager{ nullptr };
     SDL_Window* m_window{ nullptr };
     IRenderer* m_renderer{ nullptr };
+
+    // Camera override
+    bool m_useCameraOverride{ false };
+    glm::mat4 m_overrideView{ 1.0f };
+    glm::mat4 m_overrideProj{ 1.0f };
+    glm::vec3 m_overridePos{ 0.0f };
 };
 
 } // namespace Astral
