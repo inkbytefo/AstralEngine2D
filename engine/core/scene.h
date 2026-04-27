@@ -25,15 +25,13 @@ public:
     virtual void onMouseButton(int button, bool pressed, float x, float y) {}
 
 	// Tuş -> Aksiyon eşleşmesini kaydet
-	void registerAction(SDL_Keycode key, const std::string& actionName) {
-		m_actionMap[key] = actionName;
-	}
+	void registerAction(SDL_Keycode key, const std::string& actionName);
 
 	const std::map<SDL_Keycode, std::string>& getActionMap() const {
 		return m_actionMap;
 	}
 
-	EntityManager& getEntityManager() {
+	Astral::EntityManager& getEntityManager() {
 		return m_entityManager;
 	}
 
@@ -42,7 +40,7 @@ public:
 protected:
 	// Artık her oyun ("PongGame", "MarioGame") kendi EntityManager'ını oluşturmak 
 	// zorunda değil. "Scene" sınıfından miras (inherit) aldıklarında bu otomatik gelecek.
-	EntityManager m_entityManager;
+	Astral::EntityManager m_entityManager;
 	std::map<SDL_Keycode, std::string> m_actionMap; // Tuş -> "UP", "DOWN" vb.
 	App* m_app{ nullptr };
 };

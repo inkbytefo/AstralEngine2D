@@ -82,14 +82,9 @@ private:
     SDL_GPUTexture* m_blackTexture{ nullptr };
     SDL_GPUTexture* m_defaultNormalTexture{ nullptr };
 
+public:
     AssetManager() = default;
     ~AssetManager() { cleanup(); }
-
-public:
-    static AssetManager& getInstance() {
-        static AssetManager instance;
-        return instance;
-    }
 
     // GPU Device'ı set et (App başlangıcında çağrılmalı)
     void setGPUDevice(SDL_GPUDevice* device) {

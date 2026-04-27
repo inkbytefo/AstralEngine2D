@@ -5,6 +5,8 @@
 #include <utility>
 #include "components.h"
 
+namespace Astral {
+
 using ComponentTuple = std::tuple<
 	CTransform,
 	CShape,
@@ -91,3 +93,5 @@ private:
 	bool		m_active{ true };
 	ComponentTuple m_components; // Varlığın sahip olduğu bileşenlerin saklandığı tuple
 };
+
+} // namespace Astral

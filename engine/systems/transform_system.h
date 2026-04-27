@@ -1,29 +1,31 @@
 #pragma once
-#include "../core/entity_manager.h"
+#include "system.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace Astral {
 
-class TransformSystem
+class TransformSystem : public ISystem
 {
 public:
-    static void update(EntityManager& entityManager)
+    void update(EntityManager& entityManager, float deltaTime) override
     {
         // 1. Önce "Kök" (Root) olan nesneleri bul
         // Kök nesne = parent'ı olmayan nesnelerdir.
-        for (auto& entity : entityManager.getEntities()) {
-            if (entity->has<CTransform>()) {
-                auto& transform = entity->get<CTransform>();
-                if (transform.parent.expired()) { // Kök mü?
-                    updateTransform(entity, glm::mat4(1.0f));
-                }
+        for (auto& entity : entityManager.view<CTransform>()) {
+            auto& transform = entity->get<CTransform>();
+            if (transform.parent.expired()) { // Kök mü?
+                updateTransform(entity, glm::mat4(1.0f));
             }
         }
     }
 
+    int32_t getPriority() const override { return 0; }
+    const char* getName() const override { return "TransformSystem"; }
+
 private:
-    static void updateTransform(std::shared_ptr<Entity> entity, const glm::mat4& parentGlobalMatrix)
+    void updateTransform(std::shared_ptr<Astral::Entity> entity, const glm::mat4& parentGlobalMatrix)
+
     {
         auto& transform = entity->get<CTransform>();
 

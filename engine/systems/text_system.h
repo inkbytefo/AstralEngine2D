@@ -1,19 +1,22 @@
 #pragma once
-#include <SDL3/SDL.h>
-#include <SDL3_ttf/SDL_ttf.h>
-#include "core/entity_manager.h"
+#include "system.h"
+#include "../ecs/components.h"
 
+namespace Astral {
 
-/* Font System */
-class TextSystem
-{
+class TextSystem : public ISystem {
 public:
-	static void update(EntityManager& entityManager, SDL_GPUCommandBuffer* commandBuffer)
-	{
-		// TODO: SDL_GPU ile metin çizimi yapılacak
-		/*
-		for (auto& e : entityManager.getEntities())
-		...
-		*/
-	}
+    void update(EntityManager& entityManager, float deltaTime) override {
+        // Text rendering usually happens in UI pass or RenderSystem
+        // This system might handle text updates or caching
+        for (auto& entity : entityManager.view<CText, CTransform>()) {
+            auto& text = entity->get<CText>();
+            // Logic for text updates if needed
+        }
+    }
+
+    int32_t getPriority() const override { return 90; }
+    const char* getName() const override { return "TextSystem"; }
 };
+
+} // namespace Astral

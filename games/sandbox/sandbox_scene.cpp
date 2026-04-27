@@ -20,8 +20,8 @@ void SandboxScene::init()
     registerAction(SDLK_D, "RIGHT");
 
     // AssetManager'a GPU device'ı ver
-    Astral::AssetManager& assetMgr = Astral::AssetManager::getInstance();
-    assetMgr.setGPUDevice(m_app->getGPUDevice());
+    Astral::AssetManager& assetMgr = m_app->getAssetManager();
+    // assetMgr.setGPUDevice(m_app->getGPUDevice()); // Artık App.cpp'de yapılıyor
 
     // Cube mesh'i oluştur
     createCubeMesh();
@@ -55,10 +55,21 @@ void SandboxScene::init()
     // Işık (Güneş) - Z-Up'a göre ayarlandı
     auto sunEnt = m_entityManager.addEntity("sun");
     sunEnt->add<CLight>(
+        LightType::Directional,
         glm::vec3(1.0f, 0.95f, 0.8f), 
-        3.0f,                         
-        glm::normalize(glm::vec3(-1.0f, -0.5f, -1.0f)) // Z ekseni aşağı doğru (yere doğru)
+        3.0f
     );
+    sunEnt->get<CLight>().direction = glm::normalize(glm::vec3(-1.0f, -0.5f, -1.0f));
+
+    // Test için bir Point Light (Mavi/Turkuaz)
+    auto pointLight = m_entityManager.addEntity("point_light");
+    pointLight->add<CTransform>(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f));
+    pointLight->add<CLight>(
+        LightType::Point,
+        glm::vec3(0.0f, 0.8f, 1.0f),
+        15.0f
+    );
+    pointLight->get<CLight>().range = 10.0f;
 
     // ÖNEMLİ: Entity'leri aktif listeye taşı!
     m_entityManager.update();
@@ -109,7 +120,7 @@ void SandboxScene::createCubeMesh()
         20, 21, 22, 22, 23, 20  // Sol
     };
 
-    AssetManager::getInstance().uploadMesh("cube", vertices, indices);
+    m_app->getAssetManager().uploadMesh("cube", vertices, indices);
 }
 
 void SandboxScene::loadShaders()
@@ -148,8 +159,8 @@ void SandboxScene::loadShaders()
     }
 
     // Shader'ları AssetManager'a ekle (cleanup için)
-    AssetManager::getInstance().addShader(vertShader);
-    AssetManager::getInstance().addShader(fragShader);
+    m_app->getAssetManager().addShader(vertShader);
+    m_app->getAssetManager().addShader(fragShader);
 
     // Swapchain formatını al
     SDL_GPUTextureFormat swapchainFormat = SDL_GetGPUSwapchainTextureFormat(
@@ -158,7 +169,7 @@ void SandboxScene::loadShaders()
     );
 
     // PBR Pipeline oluştur
-    AssetManager::getInstance().createPipeline(
+    m_app->getAssetManager().createPipeline(
         "pbr_pipeline",
         vertShader,
         fragShader,
@@ -173,7 +184,7 @@ void SandboxScene::loadShaders()
 void SandboxScene::createMaterials()
 {
     using namespace Astral;
-    AssetManager& assetMgr = AssetManager::getInstance();
+    AssetManager& assetMgr = m_app->getAssetManager();
 
     // box.png yükle (assets/textures/ klasörüne atılmış olmalı)
     assetMgr.uploadTexture("box_tex", "assets/textures/box.png");
@@ -189,13 +200,13 @@ void SandboxScene::loadGLTFModels()
     using namespace Astral;
     
     // Pipeline'ın hazır olduğundan emin ol
-    if (!AssetManager::getInstance().getPipeline("pbr_pipeline")) {
+    if (!m_app->getAssetManager().getPipeline("pbr_pipeline")) {
         SDL_Log("UYARI: PBR Pipeline henüz hazır değil, GLTF yükleme atlanıyor");
         return;
     }
 
     // Default material oluştur (GLTF loader bunu kullanacak)
-    AssetManager::getInstance().createMaterial("default", "pbr_pipeline", "", "", "", 
+    m_app->getAssetManager().createMaterial("default", "pbr_pipeline", "", "", "", 
         glm::vec4(0.8f, 0.8f, 0.8f, 1.0f), 0.0f, 0.5f);
 
     // Hover Bike modelini yükle
@@ -203,6 +214,7 @@ void SandboxScene::loadGLTFModels()
     auto bikeRoot = GLTFLoader::loadGLTF(
         "assets/test_models/hover_bike_-_the_rocket/scene.gltf", 
         m_entityManager,
+        m_app->getAssetManager(),
         "bike_mat_"  // Material prefix
     );
     
@@ -238,40 +250,17 @@ void SandboxScene::loadGLTFModels()
 
 void SandboxScene::update(float deltaTime)
 {
-    // Kamera Sistemini Güncelle
-    Astral::CameraSystem::update(m_entityManager, deltaTime);
+    // Sistemler artık App.cpp içindeki SystemManager tarafından merkezi olarak yönetiliyor.
 }
 
 void SandboxScene::onMouseMove(float x, float y, float relX, float relY)
 {
-    for (auto& entity : m_entityManager.getEntities()) {
-        if (entity->tag() == "camera" && entity->has<CFreeLook>()) {
-            auto& look = entity->get<CFreeLook>();
-            
-            if (look.isRightMouseDown) {
-                look.yaw += relX * look.sensitivity;
-                look.pitch += relY * look.sensitivity; // Yukarı/Aşağı tersliği düzeltildi
-
-                // Pitch limitleri (Unreal/Unity tarzı)
-                if (look.pitch > 89.0f)  look.pitch = 89.0f;
-                if (look.pitch < -89.0f) look.pitch = -89.0f;
-            }
-        }
-    }
+    // Artık InputSystem tarafından yönetiliyor.
 }
 
 void SandboxScene::onMouseButton(int button, bool pressed, float x, float y)
 {
-    if (button == SDL_BUTTON_RIGHT) {
-        for (auto& entity : m_entityManager.getEntities()) {
-            if (entity->tag() == "camera" && entity->has<CFreeLook>()) {
-                entity->get<CFreeLook>().isRightMouseDown = pressed;
-                
-                // Mouse'u kilitle/serbest bırak (Unreal Editor tarzı)
-                SDL_SetWindowRelativeMouseMode(m_app->getWindow(), pressed);
-            }
-        }
-    }
+    // Artık InputSystem tarafından yönetiliyor.
 }
 
 void SandboxScene::render(SDL_GPURenderPass* renderPass)
@@ -287,16 +276,5 @@ void SandboxScene::sDoAction(const std::string& actionName, bool started)
 {
     if (actionName == "QUIT" && started) {
         m_running = false;
-    }
-
-    // Kamera kontrolleri
-    for (auto& entity : m_entityManager.getEntities()) {
-        if (entity->tag() == "camera" && entity->has<CInput>()) {
-            auto& input = entity->get<CInput>();
-            if (actionName == "UP")    input.up = started;
-            if (actionName == "DOWN")  input.down = started;
-            if (actionName == "LEFT")  input.left = started;
-            if (actionName == "RIGHT") input.right = started;
-        }
     }
 }

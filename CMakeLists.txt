@@ -29,22 +29,41 @@ set(SOURCES
     "engine/ecs/entity.h"
     "engine/ecs/components.h"
     "engine/math/vertex.h"
+    "engine/renderer/sdl3_graphics_device.cpp"
+    "engine/renderer/sdl3_renderer.cpp"
+    "engine/editor/editor_manager.cpp"
+    "engine/vendor/imgui/imgui.cpp"
+    "engine/vendor/imgui/imgui_draw.cpp"
+    "engine/vendor/imgui/imgui_tables.cpp"
+    "engine/vendor/imgui/imgui_widgets.cpp"
+    "engine/vendor/imgui/backends/imgui_impl_sdl3.cpp"
+    "engine/vendor/imgui/backends/imgui_impl_sdlgpu3.cpp"
 )
 
 add_executable(Astral ${SOURCES} 
     "engine/core/scene.h" 
+    "engine/core/scene.cpp"
     "engine/core/asset_manager.h"
+    "engine/core/system_manager.h"
+    "engine/core/system_manager.cpp"
     "engine/core/shader_loader.h"
     "engine/core/sound_manager.h" 
     "engine/core/level_loader.h"
     "engine/core/gltf_loader.h"
     "engine/core/json.hpp"
-    "engine/systems/movement_system.h" 
-    "engine/systems/render_system.h" 
+    "engine/systems/system.h"
+    "engine/systems/input_system.h"
+    "engine/systems/physics_system.h" 
+    "engine/systems/render_system.h"
+    "engine/systems/render_system.cpp" 
     "engine/systems/lifespan_system.h" 
     "engine/systems/text_system.h"
     "engine/systems/camera_system.h"
     "engine/systems/transform_system.h"
+    "engine/renderer/graphics_device.h"
+    "engine/renderer/renderer.h"
+    "engine/renderer/sdl3_graphics_device.h"
+    "engine/renderer/sdl3_renderer.h"
 )
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
@@ -56,6 +75,8 @@ target_include_directories(Astral PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/engine
     ${CMAKE_CURRENT_SOURCE_DIR}/engine/vendor/glm
+    ${CMAKE_CURRENT_SOURCE_DIR}/engine/vendor/imgui
+    ${CMAKE_CURRENT_SOURCE_DIR}/engine/vendor/imgui/backends
 )
 
 # Geliştirme aşamasında kaynak assets klasörüne erişmek için macro ve uyarıları kapatma

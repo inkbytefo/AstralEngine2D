@@ -7,7 +7,7 @@
 
 class LevelLoader {
 public:
-    static void loadLevel(EntityManager& entityManager, const std::string& filePath) {
+    static void loadLevel(EntityManager& entityManager, AssetManager& assetMgr, const std::string& filePath) {
         std::ifstream file(filePath);
         if (!file.is_open()) {
             SDL_Log("Level dosyasi bulunamadi: %s", filePath.c_str());
@@ -100,12 +100,12 @@ public:
                     
                     if (e->has<CText>()) {
                         auto& ctext = e->get<CText>();
-                        ctext.font = AssetManager::getInstance().getFont(fontId);
+                        ctext.font = assetMgr.getFont(fontId);
                         ctext.color = color;
                         ctext.setText(text);
                         ctext.needsUpdate = true;
                     } else {
-                        e->add<CText>(text, AssetManager::getInstance().getFont(fontId), color);
+                        e->add<CText>(text, assetMgr.getFont(fontId), color);
                     }
                 }
             }

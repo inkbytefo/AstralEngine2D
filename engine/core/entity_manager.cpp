@@ -1,4 +1,7 @@
 #include "core/entity_manager.h"
+#include <algorithm>
+
+namespace Astral {
 
 void EntityManager::update()
 {
@@ -46,3 +49,5 @@ EntityVec& EntityManager::getEntities(const std::string& tag)
 	// İlgili etikete ait varlık listesini döndürür.
 	return m_entityMap[tag];
 }
+
+} // namespace Astral

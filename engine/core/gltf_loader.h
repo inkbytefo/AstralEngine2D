@@ -22,7 +22,7 @@ namespace Astral {
 
 // GLTF Node'dan Entity'ye dönüşüm için geçici veri yapısı
 struct GLTFNodeData {
-    std::shared_ptr<Entity> entity;
+    std::shared_ptr<Astral::Entity> entity;
     size_t nodeIndex;
     size_t parentIndex;
     bool hasParent;
@@ -33,11 +33,12 @@ public:
     // GLTF dosyasını yükle ve Entity hiyerarşisi oluştur
     // rootEntity: Yüklenen modelin kök entity'si (nullptr ise yeni oluşturulur)
     // Returns: Root entity pointer
-    static std::shared_ptr<Entity> loadGLTF(
+    static std::shared_ptr<Astral::Entity> loadGLTF(
         const std::string& filepath,
-        EntityManager& entityManager,
+        Astral::EntityManager& entityManager,
+        AssetManager& assetMgr,
         const std::string& materialPrefix = "gltf_mat_",
-        std::shared_ptr<Entity> rootEntity = nullptr)
+        std::shared_ptr<Astral::Entity> rootEntity = nullptr)
     {
         cgltf_options options = {};
         cgltf_data* data = nullptr;
@@ -59,8 +60,6 @@ public:
         SDL_Log("  Meshler: %zu", data->meshes_count);
         SDL_Log("  Materyaller: %zu", data->materials_count);
         SDL_Log("  Node'lar: %zu", data->nodes_count);
-
-        AssetManager& assetMgr = AssetManager::getInstance();
 
         // Dosya dizinini al (dokuları bulmak için)
         std::string baseDir = "";
@@ -278,9 +277,9 @@ private:
     // Node hiyerarşisini oluştur
     static void loadNodes(
         cgltf_data* data,
-        EntityManager& entityManager,
+        Astral::EntityManager& entityManager,
         std::vector<GLTFNodeData>& nodeDataList,
-        std::shared_ptr<Entity> rootEntity,
+        std::shared_ptr<Astral::Entity> rootEntity,
         const std::string& materialPrefix)
     {
         // Tüm node'ları entity'lere dönüştür

@@ -5,6 +5,8 @@
 #include <memory>
 #include "ecs/entity.h"
 
+namespace Astral {
+
 // Varlık listeleri için kısa adlar, kodun okunabilirliğini artırır.
 using EntityVec = std::vector<std::shared_ptr<Entity>>;
 using EntityMap = std::map<std::string, EntityVec>;
@@ -23,6 +25,22 @@ public:
 	EntityVec&					getEntities();
 	// Belirli bir etikete sahip varlıklara (örn: sadece mermiler) hızlıca erişmek için kullanılır.
 	EntityVec&					getEntities(const std::string& tag);
+    
+    // Component bazlı filtreleme (ECS view pattern)
+    // Örnek: auto entities = entityManager.view<CTransform, CCamera>();
+    template <typename... T>
+    EntityVec view()
+    {
+        EntityVec result;
+        for (auto& entity : m_entities)
+        {
+            if (entity->isActive() && (entity->has<T>() && ...))
+            {
+                result.push_back(entity);
+            }
+        }
+        return result;
+    }
 
 private:
 	EntityVec		m_entities;    // Tüm varlıkların ana listesi
@@ -31,3 +49,10 @@ private:
 	uint32_t		m_totalEntites{ 0 }; // Benzersiz ID üretimi için sayaç
 
 };
+
+} // namespace Astral
+
+
+using EntityManager = Astral::EntityManager;
+using Entity = Astral::Entity;
+using EntityVec = Astral::EntityVec;

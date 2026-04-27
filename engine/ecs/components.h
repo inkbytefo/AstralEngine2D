@@ -6,7 +6,10 @@
 
 #include <vector>
 #include <memory>
+namespace Astral {
 class Entity;
+}
+
 
 // Entity (Varlık) nesnelerinin dünya uzayındaki (World Space) pozisyon, hız, ölçek ve rotasyon verilerini barındırır.
 // ECS (Entity-Component-System) ve DOD (Data-Oriented Design) mimarisi gereği, bu yapı içerisinde herhangi bir metot barındırılmaz.
@@ -19,8 +22,8 @@ struct CTransform
 	glm::vec3 rotation{ 0.0f, 0.0f, 0.0f }; // Yerel dönme açıları (Euler cinsinden)
 
 	// Scene Graph (Transform Hiyerarşisi) Yönetimi
-	std::weak_ptr<Entity> parent;                  // Ebeveyn nesneye olan referans (Döngüsel bellek sızıntısını önlemek için weak_ptr kullanılmıştır)
-	std::vector<std::shared_ptr<Entity>> children; // Alt (çocuk) nesnelerin listesi
+	std::weak_ptr<Astral::Entity> parent;                  // Ebeveyn nesneye olan referans (Döngüsel bellek sızıntısını önlemek için weak_ptr kullanılmıştır)
+	std::vector<std::shared_ptr<Astral::Entity>> children; // Alt (çocuk) nesnelerin listesi
 
 	// Önceden hesaplanmış, güncel Dünya Koordinat Matrisi (World Transform Matrix)
 	glm::mat4 globalMatrix{ 1.0f };
@@ -131,17 +134,27 @@ struct CFreeLook
     CFreeLook(float s, float sens) : speed(s), sensitivity(sens) {}
 };
 
+enum class LightType : int32_t {
+    Directional = 0,
+    Point = 1,
+    Spot = 2
+};
+
 // Işık bileşeni (PBR için)
 struct CLight
 {
 	bool has{ false };
+    LightType type{ LightType::Directional };
 	glm::vec3 color{ 1.0f, 1.0f, 1.0f };
 	float intensity{ 1.0f };
-    glm::vec3 direction{ 0.0f, -1.0f, 0.0f }; // Yönlü ışık için
+    glm::vec3 direction{ 0.0f, -1.0f, 0.0f }; // Yönlü ve Spot ışık için
+    float range{ 20.0f };                    // Point ve Spot ışık için
+    float innerCutoff{ 0.95f };              // Spot ışık için (cos)
+    float outerCutoff{ 0.90f };              // Spot ışık için (cos)
 
 	CLight() = default;
-	CLight(const glm::vec3& c, float i, const glm::vec3& dir)
-		: color(c), intensity(i), direction(dir) {}
+	CLight(LightType t, const glm::vec3& c, float i)
+		: type(t), color(c), intensity(i) {}
 };
 
 struct CLifeSpan

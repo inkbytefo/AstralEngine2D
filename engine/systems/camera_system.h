@@ -1,5 +1,5 @@
 #pragma once
-#include "../core/entity_manager.h"
+#include "system.h"
 #include "../ecs/components.h"
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -9,12 +9,10 @@ namespace Astral {
  * @brief Free-Look Kamera Sistemi.
  * WASD ile hareket, Sağ Tık + Mouse ile bakış sağlar.
  */
-class CameraSystem {
+class CameraSystem : public ISystem {
 public:
-    static void update(EntityManager& entityManager, float deltaTime) {
-        for (auto& entity : entityManager.getEntities()) {
-            if (!entity->has<CCamera>() || !entity->has<CFreeLook>() || !entity->has<CTransform>()) continue;
-
+    void update(EntityManager& entityManager, float deltaTime) override {
+        for (auto& entity : entityManager.view<CCamera, CFreeLook, CTransform>()) {
             auto& camera = entity->get<CCamera>();
             auto& look = entity->get<CFreeLook>();
             auto& transform = entity->get<CTransform>();
@@ -30,7 +28,7 @@ public:
             front = glm::normalize(front);
 
             glm::vec3 worldUp = glm::vec3(0.0f, 0.0f, 1.0f);
-            glm::vec3 right = glm::normalize(glm::cross(worldUp, front)); // Sağ vektör hesabı düzeltildi
+            glm::vec3 right = glm::normalize(glm::cross(worldUp, front));
             glm::vec3 up = glm::normalize(glm::cross(right, front));
 
             // 2. HAREKET HESAPLAMA (WASD)
@@ -48,6 +46,9 @@ public:
             camera.view = glm::lookAt(transform.pos, transform.pos + front, up);
         }
     }
+
+    int32_t getPriority() const override { return 20; }
+    const char* getName() const override { return "CameraSystem"; }
 };
 
 } // namespace Astral

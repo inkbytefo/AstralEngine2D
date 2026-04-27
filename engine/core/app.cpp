@@ -7,8 +7,17 @@
 #include "core/sound_manager.h"
 #include "systems/render_system.h"
 #include "systems/transform_system.h"
+#include "systems/physics_system.h"
+#include "systems/camera_system.h"
+#include "systems/input_system.h"
+#include "systems/lifespan_system.h"
+#include "systems/text_system.h"
+#include "renderer/sdl3_graphics_device.h"
+#include "renderer/sdl3_renderer.h"
+#include "editor/editor_manager.h"
 
-
+App::App() = default;
+App::~App() = default;
 
 bool App::init(const char* title, int width, int height)
 {
@@ -22,18 +31,13 @@ bool App::init(const char* title, int width, int height)
 	m_window = SDL_CreateWindow(title, width, height, SDL_WINDOW_RESIZABLE);
 	if (!m_window) return false;
 
-	// SDL_GPU Cihazını oluştur (Vulkan ve SPIR-V'ye zorlayalım)
-	m_gpuDevice = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, "vulkan");
-	if (!m_gpuDevice) {
-		SDL_Log("SDL_GPU Cihazi olusturulamadi!");
+	// Grafik cihazını ve renderer'ı başlat
+	m_graphicsDevice = std::make_unique<Astral::SDL3GraphicsDevice>();
+	if (!m_graphicsDevice->init(m_window)) {
 		return false;
 	}
 
-	// Pencereyi GPU cihazına bağla
-	if (!SDL_ClaimWindowForGPUDevice(m_gpuDevice, m_window)) {
-		SDL_Log("Pencere GPU cihazina baglanamadi!");
-		return false;
-	}
+	m_renderer = std::make_unique<Astral::SDL3Renderer>(m_graphicsDevice.get());
 
 	// Ses sistemini başlat
 	if (!SoundManager::getInstance().init()) {
@@ -41,121 +45,95 @@ bool App::init(const char* title, int width, int height)
 		return false;
 	}
 
+	// AssetManager'ı başlat
+	m_assetManager.setGPUDevice(m_graphicsDevice->getInternalDevice());
+
 	m_lastTime = SDL_GetTicks();
 	m_running = true;
 
-	// İlk depth texture'ı oluştur
-	updateDepthTexture(width, height);
+	// --- Sistemleri Kaydet ---
+	auto inputSys = std::make_unique<Astral::InputSystem>();
+	inputSys->setApp(this);
+	m_systemManager.addSystem(std::move(inputSys));
+
+	m_systemManager.addSystem(std::make_unique<Astral::TransformSystem>());
+	m_systemManager.addSystem(std::make_unique<Astral::PhysicsSystem>());
+	m_systemManager.addSystem(std::make_unique<Astral::CameraSystem>());
+	m_systemManager.addSystem(std::make_unique<Astral::LifespanSystem>());
+	m_systemManager.addSystem(std::make_unique<Astral::TextSystem>());
+	
+	auto renderSys = std::make_unique<Astral::RenderSystem>();
+	renderSys->setRenderer(m_renderer.get());
+	renderSys->setAssetManager(&m_assetManager);
+	renderSys->setWindow(m_window);
+	m_systemManager.addSystem(std::move(renderSys));
+
+	// EditorManager'ı başlat
+	m_editorManager = std::make_unique<EditorManager>();
+	SDL_GPUTextureFormat swapchainFormat = m_graphicsDevice->getSwapchainFormat(m_window);
+	m_editorManager->init(m_window, m_graphicsDevice->getInternalDevice(), swapchainFormat);
 
 	return true;
 }
 
 void App::run()
 {
-	// Oyunun sürekli çalışmasını sağlayan ana döngü.
 	while (m_running)
 	{
-		// --- SAHNE DEĞİŞİM KONTROLÜ (Karenin başında güvenli değişim) ---
 		if (m_nextScene) {
 			m_scene = std::move(m_nextScene);
 			m_scene->setApp(this);
 			m_scene->init();
+			m_systemManager.init(m_scene->getEntityManager());
+
+			if (auto* is = m_systemManager.getSystem<Astral::InputSystem>()) {
+				is->setActionCallback([this](const std::string& name, bool started) {
+					if (m_scene) m_scene->sDoAction(name, started);
+				});
+			}
 		}
 
 		if (!m_scene || !m_scene->isRunning()) {
-			break; // Sahne bitti veya yok, çık
+			break;
 		}
 
-		// Delta time hesaplayarak hareketin FPS'ten bağımsız, zamana bağlı olmasını sağlarız.
 		Uint64 now = SDL_GetTicks();
 		m_deltaTime = (now - m_lastTime) / 1000.0f;
 		m_lastTime = now;
 
-		// --- GİRDİ YÖNETİMİ (Input Handling) ---
 		SDL_Event event;
 		while (SDL_PollEvent(&event)) {
 			if (event.type == SDL_EVENT_QUIT) m_running = false;
-
-			if (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP) {
-				bool started = (event.type == SDL_EVENT_KEY_DOWN);
-				SDL_Keycode key = event.key.key;
-
-				// Sahnenin Action Map'inde bu tuş var mı?
-				auto& actionMap = m_scene->getActionMap();
-				if (actionMap.find(key) != actionMap.end()) {
-					// Varsa aksiyonu sahneye gönder
-					m_scene->sDoAction(actionMap.at(key), started);
-				}
-			}
-            else if (event.type == SDL_EVENT_MOUSE_MOTION) {
-                if (m_scene) m_scene->onMouseMove(event.motion.x, event.motion.y, event.motion.xrel, event.motion.yrel);
-            }
-            else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
-                if (m_scene) m_scene->onMouseButton(event.button.button, event.button.down, event.button.x, event.button.y);
-            }
+			m_systemManager.handleEvent(event);
+			m_editorManager->processEvent(&event);
 		}
 
-		m_scene->update(m_deltaTime); // Sahne güncellemesi (oyun mantığı)
+		m_editorManager->newFrame();
+
+		m_scene->update(m_deltaTime);
 		
-		// --- MODERN RENDER DÖNGÜSÜ (SDL_GPU) ---
-		// 1. Komut Tamponu (Command Buffer) al
-		SDL_GPUCommandBuffer* commandBuffer = SDL_AcquireGPUCommandBuffer(m_gpuDevice);
-		if (!commandBuffer) continue;
+		SDL_FColor clearColor = { 0.1f, 0.15f, 0.2f, 1.0f };
 
-		// 2. Swapchain Texture (Ekran yüzeyi) bekle ve al
-		SDL_GPUTexture* swapchainTexture = nullptr;
-		Uint32 w, h; // Texture boyutlarını alacağımız değişkenler
-		if (!SDL_WaitAndAcquireGPUSwapchainTexture(commandBuffer, m_window, &swapchainTexture, &w, &h)) {
-			SDL_SubmitGPUCommandBuffer(commandBuffer); // Hata durumunda boşa gönder
-			continue;
-		}
-
-		if (swapchainTexture) {
-			// 3. Depth texture'ı gerekirse güncelle (Pencere boyutu değiştiyse)
-			updateDepthTexture(w, h);
-
-			// 4. Render Pass Başlat (Ekranı temizleme işlemi burada yapılır)
-			SDL_GPUColorTargetInfo colorTargetInfo = {};
-			colorTargetInfo.texture = swapchainTexture;
-			colorTargetInfo.clear_color = { 0.1f, 0.15f, 0.2f, 1.0f }; // Modern bir koyu mavi/gri
-			colorTargetInfo.load_op = SDL_GPU_LOADOP_CLEAR;
-			colorTargetInfo.store_op = SDL_GPU_STOREOP_STORE;
-
-			// Depth Stencil Info
-			SDL_GPUDepthStencilTargetInfo depthTargetInfo = {};
-			depthTargetInfo.texture = m_depthTexture;
-			depthTargetInfo.clear_depth = 1.0f;
-			depthTargetInfo.load_op = SDL_GPU_LOADOP_CLEAR;
-			depthTargetInfo.store_op = SDL_GPU_STOREOP_DONT_CARE;
-			depthTargetInfo.stencil_load_op = SDL_GPU_LOADOP_DONT_CARE;
-			depthTargetInfo.stencil_store_op = SDL_GPU_STOREOP_DONT_CARE;
-			depthTargetInfo.cycle = false; // CLEAR kullanırken cycle false olmalı!
-
-			SDL_GPURenderPass* renderPass = SDL_BeginGPURenderPass(commandBuffer, &colorTargetInfo, 1, &depthTargetInfo);
-			
-			// SAHNEYİ RENDER PASS İLE ÇİZ!
+		if (m_renderer->beginFrame()) {
 			if (m_scene) {
-				m_scene->render(renderPass);
-				
-				// 1. Önce sahne hiyerarşisindeki global transform matrislerini hesapla
-				Astral::TransformSystem::update(m_scene->getEntityManager());
-
-				// 2. RenderSystem ile 3D mesh'leri çiz (Dinamik Aspect Ratio desteği ile)
-				Astral::RenderSystem::update(
-					m_scene->getEntityManager(), 
-					commandBuffer, 
-					m_gpuDevice,
-					m_window,
-					renderPass
-				);
+				m_editorManager->drawEditor(m_scene->getEntityManager());
 			}
-			
-			// 6. Render Pass Bitirme
-			SDL_EndGPURenderPass(renderPass);
-		}
 
-		// 7. Komutları GPU'ya gönder (Swapchain texture alındığı için otomatik sunulur)
-		SDL_SubmitGPUCommandBuffer(commandBuffer);
+			// SDL_GPU için PrepareDrawData mutlaka Render Pass dışında çağrılmalıdır.
+			m_editorManager->prepare(m_renderer->getCurrentCommandBuffer());
+
+			m_renderer->beginRenderPass(m_window, clearColor);
+			if (m_scene) {
+				m_systemManager.update(m_scene->getEntityManager(), m_deltaTime);
+			}
+			m_renderer->endRenderPass();
+
+			// UI Pass: Derinlik tamponu kullanmadan (ImGui için)
+			m_renderer->beginUIRenderPass(m_window);
+			m_editorManager->render(m_renderer->getCurrentCommandBuffer(), m_renderer->getCurrentRenderPass());
+			m_renderer->endRenderPass();
+			m_renderer->endFrame();
+		}
 	}
 }
 
@@ -164,52 +142,20 @@ void App::changeScene(std::unique_ptr<Scene> newScene)
 	m_nextScene = std::move(newScene);
 }
 
-
 void App::shutdown()
 {
-	// reset the scene
 	m_scene.reset();
-
-	// Önce texture'ları sil (AssetManager)
-	Astral::AssetManager::getInstance().cleanup();
-
-	// Ses sistemini temizle ve kapat
+	m_assetManager.cleanup();
 	SoundManager::getInstance().cleanup();
 
-	// Ayrılan bellekleri temizle ve SDL sistemlerini kapat.
-	TTF_Quit();
-	if (m_depthTexture) SDL_ReleaseGPUTexture(m_gpuDevice, m_depthTexture);
-	SDL_ReleaseWindowFromGPUDevice(m_gpuDevice, m_window);
-	SDL_DestroyGPUDevice(m_gpuDevice);
-	SDL_DestroyWindow(m_window);
-	SDL_Quit();
-}
-
-void App::updateDepthTexture(int width, int height)
-{
-	if (width <= 0 || height <= 0) return;
-
-	static int lastW = 0, lastH = 0;
-	if (width == lastW && height == lastH && m_depthTexture) return;
-
-	if (m_depthTexture) {
-		SDL_ReleaseGPUTexture(m_gpuDevice, m_depthTexture);
+	if (m_editorManager) {
+		m_editorManager->shutdown();
+		m_editorManager.reset();
 	}
 
-	SDL_GPUTextureCreateInfo depthInfo = {};
-	depthInfo.type = SDL_GPU_TEXTURETYPE_2D;
-	depthInfo.format = SDL_GPU_TEXTUREFORMAT_D16_UNORM;
-	depthInfo.usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET;
-	depthInfo.width = width;
-	depthInfo.height = height;
-	depthInfo.layer_count_or_depth = 1;
-	depthInfo.num_levels = 1;
-	depthInfo.sample_count = SDL_GPU_SAMPLECOUNT_1;
-	depthInfo.props = 0;
-
-	m_depthTexture = SDL_CreateGPUTexture(m_gpuDevice, &depthInfo);
-	lastW = width;
-	lastH = height;
-
-	SDL_Log("Depth Texture yeniden olusturuldu: %dx%d", width, height);
+	TTF_Quit();
+	m_renderer.reset();
+	m_graphicsDevice.reset();
+	SDL_DestroyWindow(m_window);
+	SDL_Quit();
 }
