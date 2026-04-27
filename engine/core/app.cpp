@@ -130,8 +130,14 @@ void App::run()
 			if (m_scene) {
 				m_scene->render(renderPass);
 				
-				// RenderSystem ile 3D mesh'leri çiz
-				Astral::RenderSystem::update(m_scene->getEntityManager(), commandBuffer, renderPass);
+				// RenderSystem ile 3D mesh'leri çiz (Dinamik Aspect Ratio desteği ile)
+				Astral::RenderSystem::update(
+					m_scene->getEntityManager(), 
+					commandBuffer, 
+					m_gpuDevice,
+					m_window,
+					renderPass
+				);
 			}
 			
 			// 6. Render Pass Bitirme

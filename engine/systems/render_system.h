@@ -73,6 +73,8 @@ public:
     static void update(
         EntityManager& entityManager,
         SDL_GPUCommandBuffer* commandBuffer,
+        SDL_GPUDevice* gpuDevice,
+        SDL_Window* window,
         SDL_GPURenderPass* renderPass = nullptr)
     {
         // Eğer dışarıdan render pass verilmişse onu kullan
@@ -95,6 +97,19 @@ public:
             if (entity->has<CCamera>()) {
                 auto& cam = entity->get<CCamera>();
                 if (cam.isActive) {
+                    // Dinamik Aspect Ratio - Pencere boyutunu al ve projeksiyon matrisini güncelle
+                    int w, h;
+                    SDL_GetWindowSize(window, &w, &h);
+                    if (w > 0 && h > 0) {
+                        // Projeksiyon matrisini mevcut pencere boyutuna göre güncelle
+                        cam.projection = glm::perspective(
+                            glm::radians(60.0f),
+                            static_cast<float>(w) / static_cast<float>(h),
+                            0.1f,
+                            100.0f
+                        );
+                    }
+                    
                     viewMatrix = cam.view;
                     projMatrix = cam.projection;
                     cameraFound = true;

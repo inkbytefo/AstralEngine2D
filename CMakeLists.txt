@@ -59,8 +59,73 @@ target_compile_definitions(Astral PRIVATE ENGINE_ASSET_DIR="${CMAKE_CURRENT_SOUR
 
 target_link_libraries(Astral PRIVATE SDL3::SDL3 SDL3_ttf::SDL3_ttf SDL3_image::SDL3_image SDL3_mixer::SDL3_mixer)
 
+# ============================================================================
+# OTOMATIK SHADER DERLEME SİSTEMİ (Vulkan SPIR-V)
+# ============================================================================
+# Vulkan SDK'nın glslc derleyicisini bul
+find_program(GLSLC_EXECUTABLE glslc HINTS 
+    "$ENV{VULKAN_SDK}/Bin" 
+    "$ENV{VULKAN_SDK}/bin"
+    "$ENV{VK_SDK_PATH}/Bin"
+)
+
+if(GLSLC_EXECUTABLE)
+    message(STATUS "glslc bulundu: ${GLSLC_EXECUTABLE}")
+    
+    # Shader kaynak dosyaları (GLSL formatında) - Stage bilgisi ile
+    set(VERTEX_SHADERS
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/basic_3d.vert.glsl"
+    )
+    
+    set(FRAGMENT_SHADERS
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/basic_3d.frag.glsl"
+    )
+    
+    # Vertex Shader'ları derle
+    foreach(SHADER ${VERTEX_SHADERS})
+        get_filename_component(SHADER_NAME ${SHADER} NAME)
+        set(SHADER_OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/${SHADER_NAME}.spv")
+        
+        add_custom_command(
+            OUTPUT ${SHADER_OUTPUT}
+            COMMAND ${GLSLC_EXECUTABLE} -fshader-stage=vertex ${SHADER} -o ${SHADER_OUTPUT}
+            DEPENDS ${SHADER}
+            COMMENT "Vertex Shader derleniyor: ${SHADER_NAME} -> ${SHADER_NAME}.spv"
+            VERBATIM
+        )
+        
+        list(APPEND SHADER_OUTPUTS ${SHADER_OUTPUT})
+    endforeach()
+    
+    # Fragment Shader'ları derle
+    foreach(SHADER ${FRAGMENT_SHADERS})
+        get_filename_component(SHADER_NAME ${SHADER} NAME)
+        set(SHADER_OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/${SHADER_NAME}.spv")
+        
+        add_custom_command(
+            OUTPUT ${SHADER_OUTPUT}
+            COMMAND ${GLSLC_EXECUTABLE} -fshader-stage=fragment ${SHADER} -o ${SHADER_OUTPUT}
+            DEPENDS ${SHADER}
+            COMMENT "Fragment Shader derleniyor: ${SHADER_NAME} -> ${SHADER_NAME}.spv"
+            VERBATIM
+        )
+        
+        list(APPEND SHADER_OUTPUTS ${SHADER_OUTPUT})
+    endforeach()
+    
+    # Shader derleme hedefi oluştur (Astral'a bağımlı)
+    add_custom_target(CompileShaders ALL DEPENDS ${SHADER_OUTPUTS})
+    add_dependencies(Astral CompileShaders)
+    
+    message(STATUS "Otomatik shader derleme sistemi aktif!")
+else()
+    message(WARNING "glslc bulunamadı! Shader'lar otomatik derlenemeyecek.")
+    message(WARNING "Vulkan SDK kurulu olduğundan emin olun: https://vulkan.lunarg.com/")
+endif()
+
 # Assets klasörünü build dizinine kopyala
 add_custom_command(TARGET Astral POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
     "${CMAKE_CURRENT_SOURCE_DIR}/assets"
-    "$<TARGET_FILE_DIR:Astral>/assets")
+    "$<TARGET_FILE_DIR:Astral>/assets"
+)

@@ -5,6 +5,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <memory>
 #include "../math/vertex.h"
 #include "shader_loader.h"
 
@@ -134,18 +135,20 @@ public:
         // Transfer buffer'ı temizle
         SDL_ReleaseGPUTransferBuffer(m_gpuDevice, transferBuffer);
 
-        // Mesh handle'ı cache'e ekle
-        GPUMesh* mesh = new GPUMesh();
+        // Mesh handle'ı cache'e ekle (Modern C++20 - Smart Pointer)
+        auto mesh = std::make_unique<GPUMesh>();
         mesh->vertexBuffer = vertexBuffer;
         mesh->indexBuffer = indexBuffer;
         mesh->vertexCount = static_cast<uint32_t>(vertices.size());
         mesh->indexCount = static_cast<uint32_t>(indices.size());
 
-        m_meshes[name] = mesh;
-        SDL_Log("AssetManager: Mesh '%s' yüklendi (V:%u, I:%u)", 
-                name.c_str(), mesh->vertexCount, mesh->indexCount);
+        GPUMesh* rawPtr = mesh.get(); // Raw pointer döndür (kullanım için)
+        m_meshes[name] = std::move(mesh);
         
-        return mesh;
+        SDL_Log("AssetManager: Mesh '%s' yüklendi (V:%u, I:%u)", 
+                name.c_str(), rawPtr->vertexCount, rawPtr->indexCount);
+        
+        return rawPtr;
     }
 
     // ============================================================================
@@ -168,7 +171,7 @@ public:
 
     GPUMesh* getMesh(const std::string& name) {
         auto it = m_meshes.find(name);
-        return (it != m_meshes.end()) ? it->second : nullptr;
+        return (it != m_meshes.end()) ? it->second.get() : nullptr;
     }
 
     // ============================================================================
@@ -326,13 +329,12 @@ public:
         }
         m_shaders.clear();
 
-        // Meshes
+        // Meshes - Smart pointer'lar otomatik temizlenir, sadece GPU resource'ları serbest bırak
         for (auto& [name, mesh] : m_meshes) {
             if (mesh->vertexBuffer) SDL_ReleaseGPUBuffer(m_gpuDevice, mesh->vertexBuffer);
             if (mesh->indexBuffer) SDL_ReleaseGPUBuffer(m_gpuDevice, mesh->indexBuffer);
-            delete mesh;
         }
-        m_meshes.clear();
+        m_meshes.clear(); // unique_ptr'lar otomatik delete edilir
 
         // Textures
         for (auto& [name, tex] : m_textures) {
@@ -352,7 +354,7 @@ private:
     ~AssetManager() = default;
 
     SDL_GPUDevice* m_gpuDevice = nullptr;
-    std::map<std::string, GPUMesh*> m_meshes;
+    std::map<std::string, std::unique_ptr<GPUMesh>> m_meshes; // Modern C++20 - Smart Pointers
     std::map<std::string, SDL_GPUGraphicsPipeline*> m_pipelines;
     std::map<std::string, SDL_GPUTexture*> m_textures;
     std::map<std::string, TTF_Font*> m_fonts;
