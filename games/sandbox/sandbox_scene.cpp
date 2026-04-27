@@ -43,12 +43,22 @@ void SandboxScene::init()
     );
     cameraEnt->cCamera.isActive = true;
 
-    // Küp entity'si oluştur
+    // Küp entity'si oluştur (Parent)
     auto cubeEnt = m_entityManager.addEntity("cube");
     cubeEnt->add<CTransform>(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f));
     cubeEnt->cTransform.scale = glm::vec3(0.5f);
     cubeEnt->cTransform.rotation = glm::vec3(0.0f);
     cubeEnt->add<CMesh>("cube", "box_material"); // Material kullanıyoruz artık!
+
+    // İkinci Küp entity'si oluştur (Child - Uydu/Ay)
+    auto moonEnt = m_entityManager.addEntity("moon");
+    moonEnt->add<CTransform>(glm::vec3(2.0f, 0.0f, 0.0f), glm::vec3(0.0f)); // Parent'a göre 2 birim sağda
+    moonEnt->cTransform.scale = glm::vec3(0.3f); // Parent'a göre %30 boyutta
+    moonEnt->add<CMesh>("cube", "box_material");
+
+    // Hiyerarşi bağlantısını kur (Scene Graph)
+    moonEnt->cTransform.parent = cubeEnt;
+    cubeEnt->cTransform.children.push_back(moonEnt);
 
     // ÖNEMLİ: Entity'leri aktif listeye taşı!
     m_entityManager.update();

@@ -6,6 +6,7 @@
 #include "core/asset_manager.h"
 #include "core/sound_manager.h"
 #include "systems/render_system.h"
+#include "systems/transform_system.h"
 
 
 
@@ -130,7 +131,10 @@ void App::run()
 			if (m_scene) {
 				m_scene->render(renderPass);
 				
-				// RenderSystem ile 3D mesh'leri çiz (Dinamik Aspect Ratio desteği ile)
+				// 1. Önce sahne hiyerarşisindeki global transform matrislerini hesapla
+				Astral::TransformSystem::update(m_scene->getEntityManager());
+
+				// 2. RenderSystem ile 3D mesh'leri çiz (Dinamik Aspect Ratio desteği ile)
 				Astral::RenderSystem::update(
 					m_scene->getEntityManager(), 
 					commandBuffer, 

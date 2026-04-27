@@ -157,8 +157,8 @@ public:
                 } fragData = { material->baseColor, material->hasAlbedoTexture ? 1 : 0 };
                 
                 // Debug log (sadece değişimde)
-                SDL_Log("RenderSystem: Material bind ediliyor: %s (Texture: %d)", 
-                        meshComp.materialName.c_str(), fragData.hasTexture);
+                // SDL_Log("RenderSystem: Material bind ediliyor: %s (Texture: %d)", 
+                //         meshComp.materialName.c_str(), fragData.hasTexture);
 
                 SDL_PushGPUFragmentUniformData(commandBuffer, 0, &fragData, sizeof(FragmentUniform));
                 lastMaterialName = meshComp.materialName;
@@ -176,13 +176,9 @@ public:
 
             // --- PER-OBJECT DATA (Push Constants) ---
             auto& transform = entity->get<CTransform>();
-            glm::mat4 model = glm::translate(glm::mat4(1.0f), transform.pos);
-            model = glm::rotate(model, transform.rotation.x, {1,0,0});
-            model = glm::rotate(model, transform.rotation.y, {0,1,0});
-            model = glm::rotate(model, transform.rotation.z, {0,0,1});
-            model = glm::scale(model, transform.scale);
-
-            UniformData uniforms = { model, viewMatrix, projMatrix };
+            
+            // Scene Graph sayesinde global matris önceden hesaplandı
+            UniformData uniforms = { transform.globalMatrix, viewMatrix, projMatrix };
             SDL_PushGPUVertexUniformData(commandBuffer, 0, &uniforms, sizeof(UniformData));
 
             // --- DRAW ---

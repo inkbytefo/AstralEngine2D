@@ -4,14 +4,26 @@
 #include <string>
 #include <SDL3_ttf/SDL_ttf.h>
 
+#include <vector>
+#include <memory>
+class Entity;
+
 // Varlıkların dünyadaki fiziksel varlığını (konum ve hız) temsil eder.
 // Veri odaklı tasarım (ECS) prensibi gereği mantıktan ayrılmıştır.
 struct CTransform
 {
-	glm::vec3 pos{ 0.0f, 0.0f, 0.0f };
+	glm::vec3 pos{ 0.0f, 0.0f, 0.0f }; // Yerel (Local) pozisyon
 	glm::vec3 velocity{ 0.0f, 0.0f, 0.0f };
-	glm::vec3 scale{ 1.0f, 1.0f, 1.0f };
-	glm::vec3 rotation{ 0.0f, 0.0f, 0.0f };
+	glm::vec3 scale{ 1.0f, 1.0f, 1.0f }; // Yerel ölçek
+	glm::vec3 rotation{ 0.0f, 0.0f, 0.0f }; // Yerel rotasyon (Euler)
+
+	// Scene Graph (Transform Hiyerarşisi)
+	std::weak_ptr<Entity> parent; // Parent (döngüsel referansı önlemek için weak_ptr)
+	std::vector<std::shared_ptr<Entity>> children; // Çocuklar
+
+	// Dünya koordinatlarındaki son hali
+	glm::mat4 globalMatrix{ 1.0f };
+
 	bool has{ false };
 
 	CTransform() = default;
